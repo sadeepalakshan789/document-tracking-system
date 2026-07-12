@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { verifyOTP, resendOTP } from "../services/api";
+import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
 
 export default function VerifyOTP() {
   const [otp, setOtp] = useState("");
@@ -13,7 +14,9 @@ export default function VerifyOTP() {
   const navigate = useNavigate();
   const email = location.state?.email || "";
 
-  const handleVerifyOTP = async () => {
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault();
+
     if (!otp) {
       setError("Please enter OTP");
       return;
@@ -26,6 +29,16 @@ export default function VerifyOTP() {
     try {
       const res = await verifyOTP({ email, otp });
       localStorage.setItem("token", res.data.token);
+      localStorage.setItem(
+        "currentUser",
+        JSON.stringify({
+          _id: res.data._id,
+          name: res.data.name,
+          email: res.data.email,
+          position: res.data.position,
+          role: res.data.role,
+        })
+      );
       navigate("/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "OTP verification failed");
@@ -51,8 +64,12 @@ export default function VerifyOTP() {
 
   if (!email) {
     return (
-      <div className="flex justify-center items-center h-screen bg-gradient-to-br from-blue-500 to-blue-600">
-        <div className="p-8 bg-white shadow-lg rounded-lg w-80 text-center">
+      <div
+        className="relative flex justify-center items-center min-h-screen bg-gray-900 bg-cover bg-center bg-no-repeat auth-wallpaper-animate"
+        style={{ backgroundImage: `url(${authWallpaper})` }}
+      >
+        <div className="absolute inset-0 bg-slate-900/45"></div>
+        <div className="relative z-10 p-8 bg-white shadow-lg rounded-lg w-80 text-center">
           <h2 className="text-xl font-bold mb-4 text-gray-800">Error</h2>
           <p className="text-red-500 mb-4">No email found. Please register again.</p>
           <button
@@ -67,8 +84,12 @@ export default function VerifyOTP() {
   }
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gradient-to-br from-blue-500 to-blue-600">
-      <div className="p-8 bg-white shadow-lg rounded-lg w-80">
+    <div
+      className="relative flex justify-center items-center min-h-screen bg-gray-900 bg-cover bg-center bg-no-repeat auth-wallpaper-animate"
+      style={{ backgroundImage: `url(${authWallpaper})` }}
+    >
+      <div className="absolute inset-0 bg-slate-900/45"></div>
+      <div className="relative z-10 p-8 bg-white shadow-lg rounded-lg w-80">
         <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Verify OTP</h2>
         <p className="text-gray-600 text-sm mb-4 text-center">
           Enter your OTP code to verify your email and complete registration.
@@ -78,22 +99,25 @@ export default function VerifyOTP() {
 
         <p className="text-gray-700 text-sm mb-4 font-semibold">Email: {email}</p>
 
-        <input
-          type="text"
-          placeholder="Enter OTP (6 digits)"
-          value={otp}
-          onChange={(e) => setOtp(e.target.value)}
-          maxLength="6"
-          className="border border-gray-300 p-3 mb-4 w-full rounded focus:outline-none focus:border-blue-500 text-center text-2xl tracking-widest font-mono"
-        />
+        <form onSubmit={handleVerifyOTP}>
+          <input
+            type="text"
+            placeholder="Enter OTP (6 digits)"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            maxLength="6"
+            required
+            className="border border-gray-300 p-3 mb-4 w-full rounded focus:outline-none focus:border-blue-500 text-center text-2xl tracking-widest font-mono"
+          />
 
-        <button
-          onClick={handleVerifyOTP}
-          disabled={loading || resending}
-          className="bg-blue-500 text-white px-4 py-3 rounded w-full font-semibold hover:bg-blue-600 transition disabled:opacity-50 mb-3"
-        >
-          {loading ? "Verifying..." : "Verify OTP"}
-        </button>
+          <button
+            type="submit"
+            disabled={loading || resending}
+            className="bg-blue-500 text-white px-4 py-3 rounded w-full font-semibold hover:bg-blue-600 transition disabled:opacity-50 mb-3"
+          >
+            {loading ? "Verifying..." : "Verify OTP"}
+          </button>
+        </form>
 
         <button
           onClick={handleResendOTP}

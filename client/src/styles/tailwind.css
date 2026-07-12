@@ -1,3 +1,30 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes authWallpaperMotion {
+  0% {
+    background-position: 50% 50%;
+    background-size: 100%;
+  }
+
+  50% {
+    background-position: 55% 45%;
+    background-size: 108%;
+  }
+
+  100% {
+    background-position: 50% 50%;
+    background-size: 100%;
+  }
+}
+
+.auth-wallpaper-animate {
+  animation: authWallpaperMotion 18s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-wallpaper-animate {
+    animation: none;
+  }
+}

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { loginUser } from "../services/api";
 import { useNavigate } from "react-router-dom";
+import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -14,6 +15,11 @@ export default function Login() {
       localStorage.setItem("token", res.data.token);
       navigate("/dashboard");
     } catch (err) {
+      if (!err.response) {
+        setError("Cannot connect to server. Please start the backend on port 5000.");
+        return;
+      }
+
       const errorData = err.response?.data;
       if (errorData?.needsOTP) {
         navigate("/verify-otp", { state: { email } });
@@ -24,8 +30,12 @@ export default function Login() {
   };
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gradient-to-br from-blue-500 to-blue-600">
-      <div className="p-8 bg-white shadow-lg rounded-lg w-80">
+    <div
+      className="relative flex justify-center items-center min-h-screen bg-gray-900 bg-cover bg-center bg-no-repeat auth-wallpaper-animate"
+      style={{ backgroundImage: `url(${authWallpaper})` }}
+    >
+      <div className="absolute inset-0 bg-slate-900/45"></div>
+      <div className="relative z-10 p-8 bg-white shadow-lg rounded-lg w-80">
         <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Login</h2>
         {error && <p className="text-red-500 mb-4 text-sm">{error}</p>}
         <input

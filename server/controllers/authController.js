@@ -1,8 +1,20 @@
 const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const { randomInt } = require("crypto");
 const { Resend } = require("resend");
+const CampusPosition = require("../models/CampusPosition");
+const Notification = require("../models/Notification");
+const Document = require("../models/Document");
+const {
+  ADMIN_ROLE,
+  USER_ROLE,
+  SUPER_ADMIN_POSITION,
+  getEffectiveRole,
+  resolveRoleFromPosition,
+  isSuperAdminPosition,
+} = require("../utils/roles");
 
 const generateToken = (id, role) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET || "defaultsecret123", {
@@ -13,6 +25,7 @@ const generateToken = (id, role) => {
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
 const SIMPLE_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NAME_EMAIL_REGEX = /^.+\s<[^<>\s@]+@[^\s@]+\.[^\s@]+>$/;
+const PRIORITY_POSITIONS = [SUPER_ADMIN_POSITION, "Admin"];
 
 const getFromAddress = () => {
   const rawFrom = (process.env.RESEND_FROM || "").trim().replace(/^"|"$/g, "");
@@ -24,7 +37,7 @@ const getFromAddress = () => {
   console.warn(
     "Invalid RESEND_FROM format. Falling back to Document Tracking System <onboarding@resend.dev>"
   );
-  return "Document Tracking System <delivered@resend.dev";
+  return "Document Tracking System <delivered@resend.dev>";
 };
 
 const sendOTP = async (email, otp) => {
@@ -73,10 +86,11 @@ const sendOTP = async (email, otp) => {
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, position, password } = req.body;
     const normalizedEmail = normalizeEmail(email);
+    const trimmedPosition = (position || "").trim();
 
-    if (!name || !normalizedEmail || !password) {
+    if (!name || !normalizedEmail || !trimmedPosition || !password) {
       return res.status(400).json({ message: "Please add all fields" });
     }
 
@@ -95,8 +109,9 @@ const registerUser = async (req, res) => {
     const user = await User.create({
       name,
       email: normalizedEmail,
+      position: trimmedPosition,
       password: hashedPassword,
-      role: role || "user",
+      role: resolveRoleFromPosition(trimmedPosition, USER_ROLE),
       verified: false,
       otp,
       otpExpires,
@@ -146,16 +161,21 @@ const verifyOTP = async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired OTP" });
     }
 
+    const effectiveRole = getEffectiveRole(user);
+
     user.verified = true;
+    user.role = effectiveRole;
     user.otp = undefined;
     user.otpExpires = undefined;
     await user.save();
 
     return res.json({
       _id: user.id,
+      name: user.name,
       email: user.email,
-      role: user.role,
-      token: generateToken(user._id, user.role),
+      position: user.position || "",
+      role: effectiveRole,
+      token: generateToken(user._id, effectiveRole),
     });
   } catch (error) {
     console.error("Verify OTP error:", error.message);
@@ -177,11 +197,20 @@ const loginUser = async (req, res) => {
       });
     }
 
+    const effectiveRole = getEffectiveRole(user);
+
+    if (user.role !== effectiveRole) {
+      user.role = effectiveRole;
+      await user.save();
+    }
+
     return res.json({
       _id: user.id,
+      name: user.name,
       email: user.email,
-      role: user.role,
-      token: generateToken(user._id, user.role),
+      position: user.position || "",
+      role: effectiveRole,
+      token: generateToken(user._id, effectiveRole),
     });
   }
 
@@ -235,4 +264,554 @@ const resendOTP = async (req, res) => {
   }
 };
 
-module.exports = { registerUser, verifyOTP, loginUser, resendOTP };
+const getCampusPositions = async (req, res) => {
+  try {
+    const positions = await CampusPosition.find({ active: true })
+      .sort({ name: 1 })
+      .select("name -_id")
+      .lean();
+
+    const positionNames = positions.map((position) => position.name);
+    const orderedPositions = [...PRIORITY_POSITIONS, ...positionNames];
+    const normalizedSeen = new Set();
+
+    const uniquePositions = orderedPositions.filter((positionName) => {
+      const normalizedName = positionName.trim().toLowerCase();
+      if (!normalizedName || normalizedSeen.has(normalizedName)) {
+        return false;
+      }
+
+      normalizedSeen.add(normalizedName);
+      return true;
+    });
+
+    return res.json(uniquePositions);
+  } catch (error) {
+    console.error("getCampusPositions error:", error.message);
+    return res.status(500).json({ message: "Failed to load campus positions" });
+  }
+};
+
+const getCurrentUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("_id name email position role verified");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      position: user.position || "",
+      role: getEffectiveRole(user),
+      verified: user.verified,
+    });
+  } catch (error) {
+    console.error("getCurrentUser error:", error.message);
+    return res.status(500).json({ message: "Failed to load current user" });
+  }
+};
+
+const updateCurrentUser = async (req, res) => {
+  try {
+    const {
+      name = "",
+      email = "",
+      position = "",
+      currentPassword = "",
+      newPassword = "",
+      confirmNewPassword = "",
+    } = req.body;
+
+    const trimmedName = name.trim();
+    const trimmedPosition = position.trim();
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!trimmedName || !normalizedEmail || !trimmedPosition) {
+      return res.status(400).json({ message: "Name, email, and position are required" });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const emailInUse = await User.findOne({
+      _id: { $ne: user._id },
+      email: normalizedEmail,
+    }).select("_id");
+
+    if (emailInUse) {
+      return res.status(400).json({ message: "Email is already in use by another account" });
+    }
+
+    const wantsPasswordChange = !!(currentPassword || newPassword || confirmNewPassword);
+    if (wantsPasswordChange) {
+      if (!currentPassword || !newPassword || !confirmNewPassword) {
+        return res.status(400).json({
+          message: "Current password, new password, and confirmation are required",
+        });
+      }
+
+      if (newPassword !== confirmNewPassword) {
+        return res.status(400).json({ message: "New password and confirmation do not match" });
+      }
+
+      const passwordMatches = await bcrypt.compare(currentPassword, user.password);
+      if (!passwordMatches) {
+        return res.status(400).json({ message: "Current password is incorrect" });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(newPassword, salt);
+    }
+
+    user.name = trimmedName;
+    user.email = normalizedEmail;
+    user.position = trimmedPosition;
+    user.role = resolveRoleFromPosition(trimmedPosition, user.role || USER_ROLE);
+
+    await user.save();
+
+    const effectiveRole = getEffectiveRole(user);
+
+    return res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      position: user.position || "",
+      role: effectiveRole,
+      verified: user.verified,
+      message: wantsPasswordChange
+        ? "Profile and password updated successfully."
+        : "Profile updated successfully.",
+    });
+  } catch (error) {
+    console.error("updateCurrentUser error:", error.message);
+    return res.status(500).json({ message: "Failed to update user profile" });
+  }
+};
+
+const getUsers = async (req, res) => {
+  try {
+    const users = await User.find({ verified: true })
+      .select("_id name email position role")
+      .sort({ name: 1 });
+
+    return res.json(
+      users.map((user) => ({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        position: user.position || "",
+        role: getEffectiveRole(user),
+      }))
+    );
+  } catch (error) {
+    console.error("getUsers error:", error.message);
+    return res.status(500).json({ message: "Failed to load users" });
+  }
+};
+
+const getUsersForAdmin = async (req, res) => {
+  try {
+    const users = await User.find({})
+      .select("_id name email position role verified createdAt updatedAt")
+      .sort({ createdAt: -1 });
+
+    return res.json(
+      users.map((user) => ({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        position: user.position || "",
+        role: getEffectiveRole(user),
+        verified: user.verified,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }))
+    );
+  } catch (error) {
+    console.error("getUsersForAdmin error:", error.message);
+    return res.status(500).json({ message: "Failed to load users for admin" });
+  }
+};
+
+const getUserByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ message: "Invalid user id" });
+    }
+
+    const user = await User.findById(id).select(
+      "_id name email position role verified createdAt updatedAt"
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      position: user.position || "",
+      role: getEffectiveRole(user),
+      verified: user.verified,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    });
+  } catch (error) {
+    console.error("getUserByAdmin error:", error.message);
+    return res.status(500).json({ message: "Failed to load user profile" });
+  }
+};
+
+const getUserActivityByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ message: "Invalid user id" });
+    }
+
+    const limit = Math.min(Math.max(Number(req.query.limit) || 200, 10), 500);
+    const userObjectId = new mongoose.Types.ObjectId(String(id));
+
+    const user = await User.findById(userObjectId).select("_id name email");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const [documentActionRows, senderDocuments, routeDocuments, notificationRows] = await Promise.all([
+      Document.aggregate([
+        { $match: { "history.actorId": userObjectId } },
+        { $unwind: "$history" },
+        { $match: { "history.actorId": userObjectId } },
+        {
+          $project: {
+            _id: 0,
+            trackingId: "$trackingId",
+            documentTitle: "$title",
+            action: "$history.action",
+            description: "$history.description",
+            occurredAt: "$history.timestamp",
+          },
+        },
+      ]),
+      Document.find({ "sender.userId": userObjectId })
+        .select("trackingId title createdAt")
+        .lean(),
+      Document.find({ "route.userId": userObjectId })
+        .select("trackingId title route")
+        .lean(),
+      Notification.find({ userId: userObjectId })
+        .select("trackingId type message isRead createdAt")
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean(),
+    ]);
+
+    const documentActionActivities = documentActionRows.map((row, index) => ({
+      id: `doc-action-${row.trackingId || "na"}-${index}`,
+      category: "document_action",
+      action: row.action || "DOCUMENT_ACTION",
+      description: row.description || "Document action recorded.",
+      trackingId: row.trackingId || "",
+      documentTitle: row.documentTitle || "",
+      occurredAt: row.occurredAt || null,
+    }));
+
+    const createdDocumentActivities = senderDocuments.map((document) => ({
+      id: `doc-created-${document.trackingId || document._id}`,
+      category: "document_created",
+      action: "DOCUMENT_CREATED",
+      description: `Created document ${document.trackingId || ""}${document.title ? ` (${document.title})` : ""}.`,
+      trackingId: document.trackingId || "",
+      documentTitle: document.title || "",
+      occurredAt: document.createdAt || null,
+    }));
+
+    const workflowRouteActivities = [];
+    routeDocuments.forEach((document) => {
+      const matchingSteps = Array.isArray(document.route)
+        ? document.route.filter(
+            (step) => String(step.userId) === String(userObjectId)
+          )
+        : [];
+
+      matchingSteps.forEach((step, stepIndex) => {
+        if (step.receivedAt) {
+          workflowRouteActivities.push({
+            id: `route-received-${document.trackingId || document._id}-${stepIndex}`,
+            category: "workflow_step",
+            action: "STEP_RECEIVED",
+            description: `Received workflow step for ${document.trackingId || "document"}.`,
+            trackingId: document.trackingId || "",
+            documentTitle: document.title || "",
+            occurredAt: step.receivedAt,
+          });
+        }
+
+        if (step.acceptedAt) {
+          workflowRouteActivities.push({
+            id: `route-accepted-${document.trackingId || document._id}-${stepIndex}`,
+            category: "workflow_step",
+            action: "STEP_ACCEPTED",
+            description: `Accepted workflow step for ${document.trackingId || "document"}.`,
+            trackingId: document.trackingId || "",
+            documentTitle: document.title || "",
+            occurredAt: step.acceptedAt,
+          });
+        }
+
+        if (step.completedAt) {
+          workflowRouteActivities.push({
+            id: `route-completed-${document.trackingId || document._id}-${stepIndex}`,
+            category: "workflow_step",
+            action: "STEP_COMPLETED",
+            description: `Completed workflow step for ${document.trackingId || "document"}.`,
+            trackingId: document.trackingId || "",
+            documentTitle: document.title || "",
+            occurredAt: step.completedAt,
+          });
+        }
+      });
+    });
+
+    const notificationActivities = notificationRows.map((notification) => ({
+      id: `notif-${notification._id}`,
+      category: "notification",
+      action: `NOTIFICATION_${String(notification.type || "system").toUpperCase()}`,
+      description: notification.message || "Notification received.",
+      trackingId: notification.trackingId || "",
+      documentTitle: "",
+      occurredAt: notification.createdAt || null,
+      isRead: !!notification.isRead,
+    }));
+
+    const activities = [
+      ...documentActionActivities,
+      ...createdDocumentActivities,
+      ...workflowRouteActivities,
+      ...notificationActivities,
+    ]
+      .filter((activity) => !!activity.occurredAt)
+      .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
+      .slice(0, limit);
+
+    return res.json({
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+      summary: {
+        total: activities.length,
+        documentActions: documentActionActivities.length,
+        documentsCreated: createdDocumentActivities.length,
+        workflowSteps: workflowRouteActivities.length,
+        notifications: notificationActivities.length,
+      },
+      activities,
+    });
+  } catch (error) {
+    console.error("getUserActivityByAdmin error:", error.message);
+    return res.status(500).json({ message: "Failed to load user activity" });
+  }
+};
+
+const createUserByAdmin = async (req, res) => {
+  try {
+    const {
+      name = "",
+      email = "",
+      position = "",
+      password = "",
+      verified = true,
+      role = USER_ROLE,
+    } = req.body;
+
+    const trimmedName = name.trim();
+    const normalizedEmail = normalizeEmail(email);
+    const trimmedPosition = position.trim();
+
+    if (!trimmedName || !normalizedEmail || !trimmedPosition || !password) {
+      return res.status(400).json({ message: "Name, email, position, and password are required" });
+    }
+
+    const existingUser = await User.findOne({ email: normalizedEmail }).select("_id");
+    if (existingUser) {
+      return res.status(400).json({ message: "User already exists" });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    const normalizedRole = String(role || USER_ROLE).trim().toLowerCase();
+    const requestedRole = normalizedRole === ADMIN_ROLE ? ADMIN_ROLE : USER_ROLE;
+    const effectiveRole = resolveRoleFromPosition(trimmedPosition, requestedRole);
+
+    const user = await User.create({
+      name: trimmedName,
+      email: normalizedEmail,
+      position: trimmedPosition,
+      password: hashedPassword,
+      role: effectiveRole,
+      verified: Boolean(verified),
+    });
+
+    return res.status(201).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      position: user.position || "",
+      role: getEffectiveRole(user),
+      verified: user.verified,
+      message: "User created successfully by admin.",
+    });
+  } catch (error) {
+    console.error("createUserByAdmin error:", error.message);
+    return res.status(500).json({ message: "Failed to create user" });
+  }
+};
+
+const updateUserByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ message: "Invalid user id" });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const {
+      name,
+      email,
+      position,
+      role,
+      verified,
+      password,
+    } = req.body;
+
+    if (typeof name === "string") {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        return res.status(400).json({ message: "Name cannot be empty" });
+      }
+      user.name = trimmedName;
+    }
+
+    if (typeof email === "string") {
+      const normalizedEmail = normalizeEmail(email);
+      if (!normalizedEmail) {
+        return res.status(400).json({ message: "Email cannot be empty" });
+      }
+
+      const emailInUse = await User.findOne({
+        _id: { $ne: user._id },
+        email: normalizedEmail,
+      }).select("_id");
+
+      if (emailInUse) {
+        return res.status(400).json({ message: "Email is already in use by another account" });
+      }
+
+      user.email = normalizedEmail;
+    }
+
+    if (typeof position === "string") {
+      const trimmedPosition = position.trim();
+      if (!trimmedPosition) {
+        return res.status(400).json({ message: "Position cannot be empty" });
+      }
+      user.position = trimmedPosition;
+    }
+
+    if (typeof verified === "boolean") {
+      user.verified = verified;
+    }
+
+    if (typeof password === "string" && password.trim()) {
+      const salt = await bcrypt.genSalt(10);
+      user.password = await bcrypt.hash(password.trim(), salt);
+    }
+
+    const normalizedRole = String(role || user.role || USER_ROLE).trim().toLowerCase();
+    const requestedRole = normalizedRole === ADMIN_ROLE ? ADMIN_ROLE : USER_ROLE;
+    user.role = resolveRoleFromPosition(user.position || "", requestedRole);
+
+    await user.save();
+
+    return res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      position: user.position || "",
+      role: getEffectiveRole(user),
+      verified: user.verified,
+      message: "User updated successfully by admin.",
+    });
+  } catch (error) {
+    console.error("updateUserByAdmin error:", error.message);
+    return res.status(500).json({ message: "Failed to update user" });
+  }
+};
+
+const deleteUserByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ message: "Invalid user id" });
+    }
+
+    if (String(id) === String(req.user.id)) {
+      return res.status(400).json({ message: "You cannot remove your own account" });
+    }
+
+    const user = await User.findById(id).select("_id name email position");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (isSuperAdminPosition(user.position) && !isSuperAdminPosition(req.user.position || "")) {
+      return res.status(403).json({ message: "Only Admin (Super) can remove another Admin (Super)" });
+    }
+
+    await User.deleteOne({ _id: user._id });
+    await Notification.deleteMany({ userId: user._id });
+
+    return res.json({
+      message: "User removed successfully.",
+      removedUser: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    console.error("deleteUserByAdmin error:", error.message);
+    return res.status(500).json({ message: "Failed to remove user" });
+  }
+};
+
+module.exports = {
+  registerUser,
+  verifyOTP,
+  loginUser,
+  resendOTP,
+  getCampusPositions,
+  getCurrentUser,
+  updateCurrentUser,
+  getUsers,
+  getUsersForAdmin,
+  getUserByAdmin,
+  getUserActivityByAdmin,
+  createUserByAdmin,
+  updateUserByAdmin,
+  deleteUserByAdmin,
+};

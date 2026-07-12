@@ -1,81 +1,766 @@
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  getAllDocuments,
+  getCurrentUser,
+  getMyDocuments,
+  getMyNotifications,
+} from "../services/api";
+
+const getPhotoStorageKey = (userId) => `profilePhoto:${userId}`;
+const LIVE_REFRESH_MS = 3000;
+
+const formatDateTime = (value) => {
+  if (!value) return "N/A";
+  return new Date(value).toLocaleString();
+};
+
+const routeSummary = (doc) => {
+  const steps = doc.route || [];
+  if (!steps.length) return "No route";
+  return `${doc.sender?.name || "Sender"} -> ${steps.map((s) => s.name).join(" -> ")}`;
+};
+
+const getReceiptStatus = (doc) => {
+  const currentStep = doc.route?.find((step) => step.status === "current");
+  if (!currentStep) return "Accepted";
+  return currentStep.acceptedAt ? "Accepted" : "Pending";
+};
+
+const stepCircleClass = (step) => {
+  if (step.status === "completed") {
+    return "bg-emerald-600 text-white";
+  }
+
+  if (step.status === "current") {
+    return step.acceptedAt ? "bg-teal-600 text-white" : "bg-yellow-400 text-gray-900";
+  }
+
+  return "bg-gray-200 text-gray-700";
+};
+
+const stepStatusLabel = (step) => {
+  if (step.status === "completed") return "Completed";
+  if (step.status === "current") return step.acceptedAt ? "Current (Accepted)" : "Current";
+  return "Pending";
+};
+
+const connectorProgressPercent = (route = []) => {
+  if (route.length <= 1) return 0;
+
+  const greenSegments = route
+    .slice(1)
+    .filter((step) => step.status === "completed" || (step.status === "current" && step.acceptedAt))
+    .length;
+
+  return (greenSegments / (route.length - 1)) * 100;
+};
+
+const isWorkflowComplete = (doc) => {
+  if (!doc?.route?.length) return false;
+  return doc.status === "Completed" && doc.route.every((step) => step.status === "completed");
+};
+
+const statusToneClass = (tone) => {
+  if (tone === "success") return "text-emerald-700";
+  if (tone === "warning") return "text-yellow-700";
+  return "text-gray-600";
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [userDocuments] = useState([]);
+  const documentsSectionRef = useRef(null);
+
+  const [user, setUser] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [locationDocuments, setLocationDocuments] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
+  const [selectedTrackingId, setSelectedTrackingId] = useState("");
+  const [lastSyncedAt, setLastSyncedAt] = useState(new Date());
+  const [activeCardFilter, setActiveCardFilter] = useState("all");
+
+  const unreadCount = useMemo(
+    () => notifications.filter((notification) => !notification.isRead).length,
+    [notifications]
+  );
+
+  const needsMyAction = useMemo(
+    () => documents.filter((doc) => doc.workflow?.canAccept),
+    [documents]
+  );
+
+  const unreadRelatedDocuments = useMemo(() => {
+    const unreadTrackingIds = new Set(
+      notifications
+        .filter((notification) => !notification.isRead && notification.trackingId)
+        .map((notification) => notification.trackingId)
+    );
+
+    return documents.filter((doc) => unreadTrackingIds.has(doc.trackingId));
+  }, [documents, notifications]);
+
+  const filteredDocuments = useMemo(() => {
+    if (activeCardFilter === "action") return needsMyAction;
+    if (activeCardFilter === "notification") return unreadRelatedDocuments;
+    return documents;
+  }, [activeCardFilter, documents, needsMyAction, unreadRelatedDocuments]);
+
+  const filteredDocumentsTitle = useMemo(() => {
+    if (activeCardFilter === "action") return "Documents Awaiting My Acceptance";
+    if (activeCardFilter === "notification") return "Documents Related To Unread Notifications";
+    return "Documents Assigned To Me";
+  }, [activeCardFilter]);
+
+  const canViewUserControl = useMemo(() => {
+    const normalizedRole = String(user?.role || "").trim().toLowerCase();
+    return normalizedRole === "admin";
+  }, [user?.role]);
+
+  const trackedDocument = useMemo(
+    () => locationDocuments.find((doc) => doc.trackingId === selectedTrackingId) || null,
+    [locationDocuments, selectedTrackingId]
+  );
+
+  const trackedLocation = useMemo(() => {
+    if (!trackedDocument) return null;
+
+    const route = trackedDocument.route || [];
+    const currentIndex = route.findIndex((step) => step.status === "current");
+    const currentStep = currentIndex >= 0 ? route[currentIndex] : null;
+    const nextStep =
+      currentIndex >= 0
+        ? route.slice(currentIndex + 1).find((step) => step.status === "pending")
+        : route.find((step) => step.status === "pending") || null;
+
+    const completed = isWorkflowComplete(trackedDocument);
+    const latestHistory = trackedDocument.history?.length
+      ? trackedDocument.history[trackedDocument.history.length - 1]
+      : null;
+
+    const currentReceipt = completed
+      ? { label: "Completed", tone: "success", at: null }
+      : currentStep?.acceptedAt
+        ? { label: "Accepted", tone: "success", at: currentStep.acceptedAt }
+        : currentStep
+          ? { label: "Pending acceptance", tone: "warning", at: null }
+          : { label: "Not available", tone: "muted", at: null };
+
+    const nextReceipt = completed
+      ? { label: "Not applicable", tone: "muted" }
+      : nextStep
+        ? { label: "Pending", tone: "warning" }
+        : { label: "Waiting for next assignment", tone: "muted" };
+
+    return {
+      isCompleted: completed,
+      currentStep,
+      nextStep,
+      currentLocation: completed ? "Workflow Completed" : currentStep?.name || "No active holder",
+      nextLocation: completed ? "None (workflow finished)" : nextStep?.name || "No next step",
+      currentReceipt,
+      nextReceipt,
+      completedSteps: route.filter((step) => step.status === "completed").length,
+      totalSteps: route.length,
+      lastActivityDescription: latestHistory?.description || "No recent activity",
+      lastActivityAt: latestHistory?.timestamp || trackedDocument.updatedAt,
+    };
+  }, [trackedDocument]);
+
+  const fetchDashboardData = useCallback(
+    async (showLoader = true) => {
+      try {
+        if (showLoader) {
+          setLoading(true);
+        }
+        setError("");
+
+        const [userRes, docsRes, allDocsRes, notificationsRes] = await Promise.all([
+          getCurrentUser(),
+          getMyDocuments(),
+          getAllDocuments(),
+          getMyNotifications(),
+        ]);
+
+        setUser(userRes.data);
+        setDocuments((docsRes.data || []).filter((doc) => doc.workflow?.canAccept));
+        setLocationDocuments(allDocsRes.data || []);
+        setNotifications(notificationsRes.data || []);
+        setLastSyncedAt(new Date());
+
+        localStorage.setItem("currentUser", JSON.stringify(userRes.data));
+      } catch (err) {
+        setError(err.response?.data?.message || "Failed to load dashboard data");
+        if (err.response?.status === 401) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("currentUser");
+          navigate("/login");
+        }
+      } finally {
+        if (showLoader) {
+          setLoading(false);
+        }
+      }
+    },
+    [navigate]
+  );
 
   useEffect(() => {
-    // Check if user is logged in
     const token = localStorage.getItem("token");
     if (!token) {
       navigate("/login");
+      return;
     }
-    // TODO: Fetch user documents from API
-  }, [navigate]);
+
+    fetchDashboardData(true);
+  }, [fetchDashboardData, navigate]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const intervalId = setInterval(() => {
+      fetchDashboardData(false);
+    }, LIVE_REFRESH_MS);
+
+    return () => clearInterval(intervalId);
+  }, [fetchDashboardData]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const handleWindowFocus = () => {
+      fetchDashboardData(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchDashboardData(false);
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchDashboardData]);
+
+  useEffect(() => {
+    if (!user?._id) return;
+    const savedPhoto = localStorage.getItem(getPhotoStorageKey(user._id));
+    setProfilePhoto(savedPhoto || "");
+  }, [user?._id]);
+
+  useEffect(() => {
+    if (!locationDocuments.length) {
+      setSelectedTrackingId("");
+      return;
+    }
+
+    const exists = locationDocuments.some((doc) => doc.trackingId === selectedTrackingId);
+    if (!selectedTrackingId || !exists) {
+      setSelectedTrackingId(locationDocuments[0].trackingId);
+    }
+  }, [locationDocuments, selectedTrackingId]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("currentUser");
     navigate("/login");
   };
 
+  const handlePhotoUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !user?._id) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("Please upload a valid image file.");
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Image must be 2MB or smaller.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const imageData = String(reader.result || "");
+      setProfilePhoto(imageData);
+      localStorage.setItem(getPhotoStorageKey(user._id), imageData);
+      setError("");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePhoto = () => {
+    if (!user?._id) return;
+    localStorage.removeItem(getPhotoStorageKey(user._id));
+    setProfilePhoto("");
+  };
+
+  const handleCardFilterClick = (filter) => {
+    setActiveCardFilter(filter);
+    documentsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center text-gray-700 text-lg font-semibold">
+        Loading dashboard...
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-blue-600 text-white p-4 shadow-md">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Document Tracking System</h1>
-          <button
-            onClick={handleLogout}
-            className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded transition"
-          >
-            Logout
-          </button>
+      <header className="bg-blue-700 text-white p-4 shadow-md">
+        <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-4">
+          <div className="flex items-center gap-3 md:-ml-[4.5cm]">
+            <div className="flex items-center gap-3">
+              <label className="relative w-[2cm] h-[2cm] rounded-full overflow-hidden bg-blue-900 flex items-center justify-center border border-blue-300/40 cursor-pointer hover:ring-2 hover:ring-white/40 transition">
+                {profilePhoto ? (
+                  <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xl font-bold">
+                    {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                  </span>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+              </label>
+              <div>
+                <p className="text-xl font-bold leading-tight">{user?.name || "User"}</p>
+                <p className="text-sm text-blue-100 leading-tight">
+                  {user?.position || "Position not set"}
+                </p>
+                <p className="text-sm text-blue-100/90 leading-tight mt-0.5">Click photo to update</p>
+                {profilePhoto && (
+                  <button
+                    onClick={handleRemovePhoto}
+                    className="mt-1 text-sm bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          <div className="text-right ml-auto md:translate-x-[3.5cm]">
+            <h1 className="text-2xl font-bold">Document Workflow Dashboard</h1>
+            <p className="text-blue-100 text-sm">Signed in as {user?.email || "-"}</p>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          {/* Quick Actions */}
-          <div
-            onClick={() => navigate("/create-document")}
-            className="bg-white p-6 rounded shadow-md cursor-pointer hover:shadow-lg transition transform hover:scale-105"
-          >
-            <h3 className="text-xl font-bold text-blue-600 mb-2">Create Document</h3>
-            <p className="text-gray-600">Upload and create a new document</p>
-          </div>
+      <main className="max-w-[1550px] xl:ml-4 xl:mr-auto p-6 space-y-6">
+        {error && <p className="bg-red-100 text-red-700 p-3 rounded">{error}</p>}
 
-          <div
-            onClick={() => navigate("/track-document")}
-            className="bg-white p-6 rounded shadow-md cursor-pointer hover:shadow-lg transition transform hover:scale-105"
-          >
-            <h3 className="text-xl font-bold text-green-600 mb-2">Track Document</h3>
-            <p className="text-gray-600">Track the status of your documents</p>
-          </div>
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 xl:gap-8">
+          <aside className="xl:col-span-2 xl:-ml-3 xl:pr-4 xl:border-r xl:border-slate-300/70">
+            <section className="w-full bg-slate-100 border border-slate-200 rounded-3xl p-4">
+              <h2 className="text-sm font-bold text-slate-800">Control Panel</h2>
+              <p className="text-xs text-slate-500 mt-1">Quick actions for your account.</p>
 
-          <div className="bg-white p-6 rounded shadow-md">
-            <h3 className="text-xl font-bold text-purple-600 mb-2">My Documents</h3>
-            <p className="text-gray-600">{userDocuments.length} documents</p>
+              <div className="space-y-3 mt-4">
+                <button
+                  onClick={() => navigate("/workflow-documents")}
+                  className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-indigo-200 bg-white px-3 py-3 text-left hover:bg-indigo-50 transition"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                      W
+                    </span>
+                    <span>
+                      <span className="block font-semibold text-slate-800">Workflow Documents</span>
+                      <span className="block text-xs text-slate-500">View all documents</span>
+                    </span>
+                  </span>
+                  <span className="text-slate-400 text-sm font-bold">{">"}</span>
+                </button>
+
+                <button
+                  onClick={() => navigate("/notifications")}
+                  className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-blue-200 bg-white px-3 py-3 text-left hover:bg-blue-50 transition"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                      N
+                    </span>
+                    <span>
+                      <span className="block font-semibold text-slate-800">Notifications</span>
+                      <span className="block text-xs text-slate-500">Inbox and alerts</span>
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <span className="inline-flex min-w-[24px] h-[24px] px-1 items-center justify-center rounded-full bg-purple-500 text-white text-xs font-bold">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                    <span className="text-slate-400 text-sm font-bold">{">"}</span>
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => navigate("/settings")}
+                  className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-emerald-200 bg-white px-3 py-3 text-left hover:bg-emerald-50 transition"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                      S
+                    </span>
+                    <span>
+                      <span className="block font-semibold text-slate-800">Settings</span>
+                      <span className="block text-xs text-slate-500">Profile and security</span>
+                    </span>
+                  </span>
+                  <span className="text-slate-400 text-sm font-bold">{">"}</span>
+                </button>
+
+                {canViewUserControl && (
+                  <button
+                    onClick={() => navigate("/user-control")}
+                    className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-amber-200 bg-white px-3 py-3 text-left hover:bg-amber-50 transition"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
+                        U
+                      </span>
+                      <span>
+                        <span className="block font-semibold text-slate-800">User Control</span>
+                        <span className="block text-xs text-slate-500">Manage user access</span>
+                      </span>
+                    </span>
+                    <span className="text-slate-400 text-sm font-bold">{">"}</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={handleLogout}
+                  className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-red-700 bg-red-600 px-3 py-3 text-left hover:bg-red-700 transition"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center font-bold">
+                      L
+                    </span>
+                    <span>
+                      <span className="block font-semibold text-white">Logout</span>
+                      <span className="block text-xs text-red-100">Sign out safely</span>
+                    </span>
+                  </span>
+                  <span className="text-red-100 text-sm font-bold">{">"}</span>
+                </button>
+              </div>
+            </section>
+          </aside>
+
+          <aside className="xl:col-span-5 xl:pl-2">
+            <section className="bg-white p-5 rounded shadow-sm border border-gray-100 h-full">
+              <h2 className="text-lg font-bold text-gray-800">Document Current Location</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Live refreshes every {LIVE_REFRESH_MS / 1000} seconds
+              </p>
+              <p className="text-xs text-gray-500">Last sync: {formatDateTime(lastSyncedAt)}</p>
+
+              {locationDocuments.length === 0 ? (
+                <p className="text-gray-500 text-sm mt-4">No documents available to track.</p>
+              ) : (
+                <>
+                  <label className="block text-sm text-gray-700 font-semibold mt-4 mb-2">
+                    Select Document
+                  </label>
+                  <select
+                    value={selectedTrackingId}
+                    onChange={(e) => setSelectedTrackingId(e.target.value)}
+                    className="w-full border border-gray-300 p-2 rounded focus:outline-none focus:border-blue-500 text-sm"
+                  >
+                    {locationDocuments.map((doc) => (
+                      <option key={doc._id} value={doc.trackingId}>
+                        {doc.trackingId} - {doc.title}
+                      </option>
+                    ))}
+                  </select>
+
+                  {trackedDocument && (
+                    <div className="mt-4">
+                      <div className="bg-gray-50 border border-gray-200 rounded p-3">
+                        <p className="text-xs text-gray-600">
+                          Sender:{" "}
+                          <span className="font-semibold text-gray-800">
+                            {trackedDocument.sender?.name || "N/A"}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-600 mt-1">
+                          Receivers in path:{" "}
+                          <span className="font-semibold text-gray-800">
+                            {trackedDocument.route?.length || 0}
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="relative pt-6 pb-2">
+                        {trackedDocument.route?.length > 1 && (
+                          <>
+                            <div className="absolute left-14 right-14 top-[58px] h-2 bg-gray-200 rounded"></div>
+                            <div
+                              className="absolute left-14 top-[58px] h-2 bg-emerald-500 rounded transition-all duration-300"
+                              style={{ width: `calc((100% - 7rem) * ${connectorProgressPercent(trackedDocument.route) / 100})` }}
+                            ></div>
+                          </>
+                        )}
+
+                        {isWorkflowComplete(trackedDocument) && (
+                          <div className="absolute right-2 top-[42px] w-8 h-8 rounded-full bg-white border-2 border-emerald-600 text-emerald-600 flex items-center justify-center text-base font-bold">
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <path d="M20 6 9 17l-5-5" />
+                            </svg>
+                          </div>
+                        )}
+
+                        <div className="relative flex gap-4 overflow-x-auto pb-2">
+                          {trackedDocument.route?.map((step, index) => (
+                            <div key={`${step.userId}-${index}`} className="min-w-[96px] text-center">
+                              <div
+                                className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-sm font-bold ${stepCircleClass(step)}`}
+                                title={stepStatusLabel(step)}
+                              >
+                                {index + 1}
+                              </div>
+                              <p className="text-xs font-semibold text-gray-700 mt-2 leading-tight">
+                                {step.name}
+                              </p>
+                              <p className="text-[11px] text-gray-500 mt-1">{stepStatusLabel(step)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 bg-gray-50 border border-gray-200 rounded p-3 space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-gray-800">Live Workflow Summary</p>
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                              trackedLocation?.isCompleted
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-blue-100 text-blue-700"
+                            }`}
+                          >
+                            {trackedDocument.status}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          <div className="bg-white border border-gray-200 rounded p-2">
+                            <p className="text-gray-500">Current Location</p>
+                            <p className="font-semibold text-gray-800">{trackedLocation?.currentLocation}</p>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded p-2">
+                            <p className="text-gray-500">Next Location</p>
+                            <p className="font-semibold text-gray-800">{trackedLocation?.nextLocation}</p>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded p-2">
+                            <p className="text-gray-500">Current Receipt</p>
+                            <p className={`font-semibold ${statusToneClass(trackedLocation?.currentReceipt?.tone)}`}>
+                              {trackedLocation?.currentReceipt?.label}
+                            </p>
+                            {trackedLocation?.currentReceipt?.at && (
+                              <p className="text-[11px] text-gray-500 mt-1">
+                                at {formatDateTime(trackedLocation.currentReceipt.at)}
+                              </p>
+                            )}
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded p-2">
+                            <p className="text-gray-500">Next Receipt</p>
+                            <p className={`font-semibold ${statusToneClass(trackedLocation?.nextReceipt?.tone)}`}>
+                              {trackedLocation?.nextReceipt?.label}
+                            </p>
+                          </div>
+                          <div className="bg-white border border-gray-200 rounded p-2 sm:col-span-2">
+                            <p className="text-gray-500">Progress</p>
+                            <p className="font-semibold text-gray-800">
+                              {trackedLocation?.completedSteps} / {trackedLocation?.totalSteps} steps completed
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-gray-700">
+                          <p>
+                            <span className="font-semibold">Last Activity:</span>{" "}
+                            {trackedLocation?.lastActivityDescription}
+                          </p>
+                          <p className="text-gray-500 mt-1">
+                            {formatDateTime(trackedLocation?.lastActivityAt)}
+                          </p>
+                          <p className="mt-2">
+                            <span className="font-semibold">Workflow Route:</span>{" "}
+                            {routeSummary(trackedDocument)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+          </aside>
+
+          <div className="xl:col-span-5 space-y-6">
+            <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <button
+                type="button"
+                onClick={() => handleCardFilterClick("all")}
+                className={`bg-white p-5 rounded shadow-sm border text-left transition ${
+                  activeCardFilter === "all"
+                    ? "border-blue-500 ring-2 ring-blue-100"
+                    : "border-gray-100 hover:border-blue-200"
+                }`}
+              >
+                <p className="text-sm text-gray-500">Assigned To Me</p>
+                <p className="text-3xl font-bold text-gray-800">{documents.length}</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCardFilterClick("action")}
+                className={`bg-white p-5 rounded shadow-sm border text-left transition ${
+                  activeCardFilter === "action"
+                    ? "border-orange-500 ring-2 ring-orange-100"
+                    : "border-gray-100 hover:border-orange-200"
+                }`}
+              >
+                <p className="text-sm text-gray-500">Needs My Action</p>
+                <p className="text-3xl font-bold text-orange-600">{needsMyAction.length}</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCardFilterClick("notification")}
+                className={`bg-white p-5 rounded shadow-sm border text-left transition ${
+                  activeCardFilter === "notification"
+                    ? "border-purple-500 ring-2 ring-purple-100"
+                    : "border-gray-100 hover:border-purple-200"
+                }`}
+              >
+                <p className="text-sm text-gray-500">Unread Notifications</p>
+                <p className="text-3xl font-bold text-purple-700">{unreadCount}</p>
+              </button>
+
+              <div className="bg-white p-5 rounded shadow-sm border border-gray-100 flex flex-col gap-2">
+                <button
+                  onClick={() => navigate("/create-document")}
+                  className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition"
+                >
+                  Create Document
+                </button>
+                <button
+                  onClick={() => navigate("/track-document")}
+                  className="w-full bg-emerald-600 text-white py-2 rounded font-semibold hover:bg-emerald-700 transition"
+                >
+                  Track Document
+                </button>
+              </div>
+            </section>
+
+            <section ref={documentsSectionRef} className="bg-white p-6 rounded shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800">{filteredDocumentsTitle}</h2>
+                <div className="flex gap-2">
+                  {activeCardFilter !== "all" && (
+                    <button
+                      onClick={() => setActiveCardFilter("all")}
+                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm font-semibold"
+                    >
+                      Show All
+                    </button>
+                  )}
+                  <button
+                    onClick={() => fetchDashboardData(false)}
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm font-semibold"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              {filteredDocuments.length === 0 ? (
+                <p className="text-gray-500">
+                  {activeCardFilter === "all" && "No documents are currently assigned to you."}
+                  {activeCardFilter === "action" && "No documents are currently awaiting your acceptance."}
+                  {activeCardFilter === "notification" &&
+                    "No documents are linked to unread notifications."}
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {filteredDocuments.map((doc) => (
+                    <div key={doc._id} className="border border-gray-200 rounded p-4 bg-gray-50">
+                      <div className="flex flex-wrap justify-between gap-3 items-start">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-800">{doc.title}</h3>
+                          <p className="text-sm text-gray-600">Tracking ID: {doc.trackingId}</p>
+                          <p className="text-sm text-gray-600">Status: {doc.status}</p>
+                          <p className="text-sm text-gray-600">
+                            Receipt Status:{" "}
+                            <span
+                              className={`font-semibold ${
+                                getReceiptStatus(doc) === "Accepted"
+                                  ? "text-emerald-700"
+                                  : "text-yellow-700"
+                              }`}
+                            >
+                              {getReceiptStatus(doc)}
+                            </span>
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Current Holder: {doc.currentHolder?.name || "Completed"}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          {(doc.workflow?.canAccept || doc.workflow?.canForward) && (
+                            <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">
+                              Action Required
+                            </span>
+                          )}
+                          <button
+                            onClick={() => navigate(`/track-document/${doc.trackingId}`)}
+                            className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition"
+                          >
+                            Open Workflow
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-700 mt-2">Route: {routeSummary(doc)}</p>
+                      <p className="text-xs text-gray-500 mt-1">Updated: {formatDateTime(doc.updatedAt)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
           </div>
         </div>
-
-        {/* Documents List */}
-        <div className="bg-white p-6 rounded shadow-md">
-          <h2 className="text-xl font-bold mb-4">Recent Documents</h2>
-          {userDocuments.length === 0 ? (
-            <p className="text-gray-500">No documents yet. Create one to get started!</p>
-          ) : (
-            <ul>
-              {userDocuments.map((doc, index) => (
-                <li key={index} className="py-2 border-b">
-                  {doc.name}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
