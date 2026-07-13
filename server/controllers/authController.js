@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const { randomInt } = require("crypto");
-const { Resend } = require("resend");
+const SibApiV3Sdk = require("sib-api-v3-sdk");
 const CampusPosition = require("../models/CampusPosition");
 const Notification = require("../models/Notification");
 const Document = require("../models/Document");
@@ -28,59 +28,72 @@ const NAME_EMAIL_REGEX = /^.+\s<[^<>\s@]+@[^\s@]+\.[^\s@]+>$/;
 const PRIORITY_POSITIONS = [SUPER_ADMIN_POSITION, "Admin"];
 
 const getFromAddress = () => {
-  const rawFrom = (process.env.RESEND_FROM || "").trim().replace(/^"|"$/g, "");
+  const rawFrom = (process.env.BREVO_FROM || process.env.BREVO_SENDER || "").trim().replace(/^"|"$/g, "");
 
   if (SIMPLE_EMAIL_REGEX.test(rawFrom) || NAME_EMAIL_REGEX.test(rawFrom)) {
     return rawFrom;
   }
 
   console.warn(
-    "Invalid RESEND_FROM format. Falling back to Document Tracking System <onboarding@resend.dev>"
+    "Invalid BREVO_FROM format. Falling back to Document Tracking System <noreply@example.com>"
   );
-  return "Document Tracking System <delivered@resend.dev>";
+  return "Document Tracking System <noreply@example.com>";
+};
+
+const parseSenderAddress = (fromAddress) => {
+  const match = fromAddress.match(/^(.*)\s*<([^<>]+)>$/);
+  if (match) {
+    return { name: match[1].trim(), email: match[2].trim() };
+  }
+  return { name: "Document Tracking System", email: fromAddress };
+};
+
+const getBrevoClient = () => {
+  const defaultClient = SibApiV3Sdk.ApiClient.instance;
+  defaultClient.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
+  return new SibApiV3Sdk.TransactionalEmailsApi();
 };
 
 const sendOTP = async (email, otp) => {
-  const resendApiKey = process.env.RESEND_API || process.env.RESEND_API_KEY;
+  const brevoApiKey = process.env.BREVO_API_KEY;
   const fromAddress = getFromAddress();
 
-  if (!resendApiKey) {
-    console.error("RESEND_API (or RESEND_API_KEY) is missing in environment variables.");
-    return { sent: false, error: "Resend API key not configured" };
+  if (!brevoApiKey) {
+    console.error("BREVO_API_KEY is missing in environment variables.");
+    return { sent: false, error: "Brevo API key not configured" };
   }
 
-  try {
-    const resend = new Resend(resendApiKey);
-
-    const { data, error } = await resend.emails.send({
-      from: fromAddress,
-      to: email,
-      subject: "OTP Verification - Document Tracking System",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563eb;">Email Verification</h2>
-          <p>Hello,</p>
-          <p>Your OTP for registration is:</p>
-          <div style="background-color: #f0f9ff; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0;">
-            <h1 style="color: #2563eb; letter-spacing: 5px; margin: 0; text-align: center;">${otp}</h1>
-          </div>
-          <p>This OTP is valid for 10 minutes.</p>
-          <p>If you didn't request this, please ignore this email.</p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb;">
-          <p style="color: #666; font-size: 12px;">Document Tracking System</p>
+  const sender = parseSenderAddress(fromAddress);
+  const sendSmtpEmail = {
+    sender,
+    to: [{ email }],
+    subject: "OTP Verification - Document Tracking System",
+    htmlContent: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">Email Verification</h2>
+        <p>Hello,</p>
+        <p>Your OTP for registration is:</p>
+        <div style="background-color: #f0f9ff; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0;">
+          <h1 style="color: #2563eb; letter-spacing: 5px; margin: 0; text-align: center;">${otp}</h1>
         </div>
-      `,
-    });
+        <p>This OTP is valid for 10 minutes.</p>
+        <p>If you didn't request this, please ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #e5e7eb;">
+        <p style="color: #666; font-size: 12px;">Document Tracking System</p>
+      </div>
+    `,
+  };
 
-    if (error) {
-      throw new Error(error.message || "Failed to send email with Resend");
-    }
+  try {
+    const apiInstance = getBrevoClient();
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
 
-    console.log(`OTP email sent via Resend to ${email}`);
-    return { sent: true, messageId: data?.id };
+    console.log(`OTP email sent via Brevo to ${email} from ${fromAddress}`);
+    return { sent: true, messageId: result.messageId || null };
   } catch (err) {
-    console.error(`Error sending OTP email via Resend to ${email}:`, err.message);
-    return { sent: false, error: err.message };
+    const errMsg = err?.body?.message || err?.message || JSON.stringify(err);
+    console.error(`Error sending OTP email via Brevo to ${email}:`, errMsg);
+    return { sent: false, error: errMsg };
   }
 };
 
