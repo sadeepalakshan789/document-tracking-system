@@ -97,6 +97,9 @@ const sendOTP = async (email, otp) => {
   }
 };
 
+// ─────────────────────────────────────────────
+//  registerUser
+// ─────────────────────────────────────────────
 const registerUser = async (req, res) => {
   try {
     const { name, email, position, password } = req.body;
@@ -113,12 +116,11 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
     const otp = randomInt(100000, 1000000).toString();
     const otpExpires = new Date(Date.now() + 10 * 60000);
 
+    // The User model's pre-save hook handles bcrypt hashing automatically.
+    // Pass the plain-text password directly – no manual hashing needed here.
     const user = await User.create({
       name,
       email: normalizedEmail,
@@ -151,6 +153,9 @@ const registerUser = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────
+//  verifyOTP
+// ─────────────────────────────────────────────
 const verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -196,10 +201,16 @@ const verifyOTP = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────
+//  loginUser
+//  Includes status check – blocked users are denied a token at login time.
+// ─────────────────────────────────────────────
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
   const normalizedEmail = normalizeEmail(email);
-  const user = await User.findOne({ email: normalizedEmail });
+
+  // password is select:false in the schema – must opt in explicitly
+  const user = await User.findOne({ email: normalizedEmail }).select("+password");
 
   if (user && (await bcrypt.compare(password, user.password))) {
     if (!user.verified) {
@@ -230,6 +241,9 @@ const loginUser = async (req, res) => {
   return res.status(401).json({ message: "Invalid credentials" });
 };
 
+// ─────────────────────────────────────────────
+//  resendOTP
+// ─────────────────────────────────────────────
 const resendOTP = async (req, res) => {
   try {
     const { email } = req.body;
@@ -277,6 +291,9 @@ const resendOTP = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────
+//  getCampusPositions
+// ─────────────────────────────────────────────
 const getCampusPositions = async (req, res) => {
   try {
     const positions = await CampusPosition.find({ active: true })
@@ -305,9 +322,12 @@ const getCampusPositions = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────
+//  getCurrentUser
+// ─────────────────────────────────────────────
 const getCurrentUser = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("_id name email position role verified");
+    const user = await User.findById(req.user.id).select("_id name email position role status verified");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -327,6 +347,9 @@ const getCurrentUser = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────
+//  updateCurrentUser
+// ─────────────────────────────────────────────
 const updateCurrentUser = async (req, res) => {
   try {
     const {
@@ -346,7 +369,8 @@ const updateCurrentUser = async (req, res) => {
       return res.status(400).json({ message: "Name, email, and position are required" });
     }
 
-    const user = await User.findById(req.user.id);
+    // password is select:false – include it so we can verify current password
+    const user = await User.findById(req.user.id).select("+password");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -377,8 +401,9 @@ const updateCurrentUser = async (req, res) => {
         return res.status(400).json({ message: "Current password is incorrect" });
       }
 
-      const salt = await bcrypt.genSalt(10);
-      user.password = await bcrypt.hash(newPassword, salt);
+      // Assign plain-text password – the pre-save hook in User.js will
+      // hash it automatically when user.save() is called below.
+      user.password = newPassword;
     }
 
     user.name = trimmedName;
@@ -407,6 +432,10 @@ const updateCurrentUser = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────
+//  getUsers
+//  Returns all verified users (used by document routing UI etc.)
+// ─────────────────────────────────────────────
 const getUsers = async (req, res) => {
   try {
     const users = await User.find({ verified: true })

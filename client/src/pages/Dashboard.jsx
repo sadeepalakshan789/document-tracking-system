@@ -1,10 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  deleteDocument,
+  downloadDocumentFile,
+  downloadDocumentVersion,
   getAllDocuments,
   getCurrentUser,
   getMyDocuments,
   getMyNotifications,
+  getDocumentVersions,
+  previewDocumentFile,
+  uploadDocumentFile,
 } from "../services/api";
 
 const getPhotoStorageKey = (userId) => `profilePhoto:${userId}`;
@@ -77,6 +83,7 @@ export default function Dashboard() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [profilePhoto, setProfilePhoto] = useState("");
   const [selectedTrackingId, setSelectedTrackingId] = useState("");
   const [lastSyncedAt, setLastSyncedAt] = useState(new Date());
@@ -239,6 +246,7 @@ export default function Dashboard() {
         if (err.response?.status === 401) {
           localStorage.removeItem("token");
           localStorage.removeItem("currentUser");
+          localStorage.removeItem("user");
           navigate("/login");
         }
       } finally {
@@ -250,6 +258,18 @@ export default function Dashboard() {
     [navigate]
   );
 
+  // Keep a ref to the latest fetchDashboardData so interval/focus effects
+  // can always call the newest version without listing it as a dependency
+  // (listing it caused the initial-fetch effect to re-run on every render).
+  const fetchDashboardDataRef = useRef(fetchDashboardData);
+  useEffect(() => {
+    fetchDashboardDataRef.current = fetchDashboardData;
+  });
+
+  // ── Initial data load — runs exactly ONCE on mount ─────────────────────
+  // Do NOT add fetchDashboardData or navigate to the dep array here;
+  // using the ref means we always get the latest function without the
+  // effect re-firing and flipping loading back to true.
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -257,31 +277,55 @@ export default function Dashboard() {
       return;
     }
 
-    fetchDashboardData(true);
-  }, [fetchDashboardData, navigate]);
+    fetchDashboardDataRef.current(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // ── Role-based redirect guard ──────────────────────────────────────────
+  // Fires once after the first successful user fetch. Using a ref prevents
+  // the navigate() call from repeating on every 3-second interval tick
+  // (which previously unmounted Dashboard → hit catch-all → remounted it
+  // → showed "Loading dashboard..." again in an infinite loop).
+  const hasRedirectedRef = useRef(false);
+  useEffect(() => {
+    if (!user || hasRedirectedRef.current) return;
+
+    if (user.role === "super-admin") {
+      hasRedirectedRef.current = true;
+      navigate("/super-admin-dashboard", { replace: true });
+    } else if (user.role === "admin") {
+      hasRedirectedRef.current = true;
+      navigate("/admin-dashboard", { replace: true });
+    }
+  }, [user, navigate]);
+
+  // ── Live-refresh interval — stable, never tears down ──────────────────
+  // Uses the ref so the interval is set up once and always calls the
+  // latest fetchDashboardData without re-creating on every render.
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
     const intervalId = setInterval(() => {
-      fetchDashboardData(false);
+      fetchDashboardDataRef.current(false);
     }, LIVE_REFRESH_MS);
 
     return () => clearInterval(intervalId);
-  }, [fetchDashboardData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // ── Window focus / visibility refresh — stable, never tears down ──────
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
     const handleWindowFocus = () => {
-      fetchDashboardData(false);
+      fetchDashboardDataRef.current(false);
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        fetchDashboardData(false);
+        fetchDashboardDataRef.current(false);
       }
     };
 
@@ -292,7 +336,8 @@ export default function Dashboard() {
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [fetchDashboardData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!user?._id) return;
@@ -351,6 +396,123 @@ export default function Dashboard() {
   const handleCardFilterClick = (filter) => {
     setActiveCardFilter(filter);
     documentsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleUploadFile = async (doc, event) => {
+    event.preventDefault();
+    const file = selectedFiles[doc.trackingId];
+    if (!file) {
+      setError("Please choose a file to upload.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      setUploadingDocumentId(doc.trackingId);
+      setError("");
+      setSuccess("");
+      const res = await uploadDocumentFile(doc.trackingId, formData);
+      setDocuments((prev) => prev.map((item) => (item.trackingId === doc.trackingId ? res.data.document : item)));
+      setLocationDocuments((prev) => prev.map((item) => (item.trackingId === doc.trackingId ? res.data.document : item)));
+      setSelectedFiles((prev) => ({ ...prev, [doc.trackingId]: null }));
+      setSuccess(`Uploaded ${file.name}`);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to upload file");
+    } finally {
+      setUploadingDocumentId("");
+    }
+  };
+
+  const handlePreviewFile = async (doc) => {
+    try {
+      setActionDocumentId(doc.trackingId);
+      setError("");
+      setSuccess("");
+      const res = await previewDocumentFile(doc.trackingId);
+      const blobUrl = window.URL.createObjectURL(res.data);
+      window.open(blobUrl, "_blank");
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to preview file");
+    } finally {
+      setActionDocumentId("");
+    }
+  };
+
+  const handleDownloadFile = async (doc) => {
+    try {
+      setActionDocumentId(doc.trackingId);
+      setError("");
+      setSuccess("");
+      const res = await downloadDocumentFile(doc.trackingId);
+      const blobUrl = window.URL.createObjectURL(res.data);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = doc.file?.originalFileName || "document";
+      link.click();
+      window.URL.revokeObjectURL(blobUrl);
+      setSuccess("File downloaded successfully");
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to download file");
+    } finally {
+      setActionDocumentId("");
+    }
+  };
+
+  const handleShowVersions = async (doc) => {
+    try {
+      setActionDocumentId(doc.trackingId);
+      setError("");
+      setSuccess("");
+      const res = await getDocumentVersions(doc.trackingId);
+      setVersionHistoryByDoc((prev) => ({ ...prev, [doc.trackingId]: res.data.versions || [] }));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load version history");
+    } finally {
+      setActionDocumentId("");
+    }
+  };
+
+  const handleDownloadVersion = async (doc, version) => {
+    try {
+      setActionDocumentId(doc.trackingId);
+      setError("");
+      setSuccess("");
+      const res = await downloadDocumentVersion(doc.trackingId, version.versionNumber);
+      const blobUrl = window.URL.createObjectURL(res.data);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = version.originalFileName || "document";
+      link.click();
+      window.URL.revokeObjectURL(blobUrl);
+      setSuccess(`Downloaded ${version.originalFileName}`);
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to download version");
+    } finally {
+      setActionDocumentId("");
+    }
+  };
+
+  const handleDeleteDocument = async (doc) => {
+    if (!window.confirm("Delete this document and its uploaded file?")) {
+      return;
+    }
+
+    try {
+      setActionDocumentId(doc.trackingId);
+      setError("");
+      setSuccess("");
+      await deleteDocument(doc.trackingId);
+      setDocuments((prev) => prev.filter((item) => item.trackingId !== doc.trackingId));
+      setLocationDocuments((prev) => prev.filter((item) => item.trackingId !== doc.trackingId));
+      setSuccess("Document deleted successfully");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete document");
+    } finally {
+      setActionDocumentId("");
+    }
   };
 
   if (loading) {
@@ -425,6 +587,7 @@ export default function Dashboard() {
 
       <main className="max-w-[1550px] xl:ml-4 xl:mr-auto p-6 space-y-6">
         {error && <p className="bg-red-100 text-red-700 p-3 rounded">{error}</p>}
+        {success && <p className="bg-green-100 text-green-700 p-3 rounded">{success}</p>}
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 xl:gap-8">
           <aside className="xl:col-span-2 xl:-ml-3 xl:pr-4 xl:border-r xl:border-slate-300/70">
@@ -619,11 +782,10 @@ export default function Dashboard() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-sm font-semibold text-gray-800">Live Workflow Summary</p>
                           <span
-                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                              trackedLocation?.isCompleted
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-blue-100 text-blue-700"
-                            }`}
+                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${trackedLocation?.isCompleted
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-blue-100 text-blue-700"
+                              }`}
                           >
                             {trackedDocument.status}
                           </span>
@@ -689,11 +851,10 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => handleCardFilterClick("all")}
-                className={`bg-white p-5 rounded shadow-sm border text-left transition ${
-                  activeCardFilter === "all"
-                    ? "border-blue-500 ring-2 ring-blue-100"
-                    : "border-gray-100 hover:border-blue-200"
-                }`}
+                className={`bg-white p-5 rounded shadow-sm border text-left transition ${activeCardFilter === "all"
+                  ? "border-blue-500 ring-2 ring-blue-100"
+                  : "border-gray-100 hover:border-blue-200"
+                  }`}
               >
                 <p className="text-sm text-gray-500">Assigned To Me</p>
                 <p className="text-3xl font-bold text-gray-800">{documents.length}</p>
@@ -702,11 +863,10 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => handleCardFilterClick("action")}
-                className={`bg-white p-5 rounded shadow-sm border text-left transition ${
-                  activeCardFilter === "action"
-                    ? "border-orange-500 ring-2 ring-orange-100"
-                    : "border-gray-100 hover:border-orange-200"
-                }`}
+                className={`bg-white p-5 rounded shadow-sm border text-left transition ${activeCardFilter === "action"
+                  ? "border-orange-500 ring-2 ring-orange-100"
+                  : "border-gray-100 hover:border-orange-200"
+                  }`}
               >
                 <p className="text-sm text-gray-500">Needs My Action</p>
                 <p className="text-3xl font-bold text-orange-600">{needsMyAction.length}</p>
@@ -715,11 +875,10 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={() => handleCardFilterClick("notification")}
-                className={`bg-white p-5 rounded shadow-sm border text-left transition ${
-                  activeCardFilter === "notification"
-                    ? "border-purple-500 ring-2 ring-purple-100"
-                    : "border-gray-100 hover:border-purple-200"
-                }`}
+                className={`bg-white p-5 rounded shadow-sm border text-left transition ${activeCardFilter === "notification"
+                  ? "border-purple-500 ring-2 ring-purple-100"
+                  : "border-gray-100 hover:border-purple-200"
+                  }`}
               >
                 <p className="text-sm text-gray-500">Unread Notifications</p>
                 <p className="text-3xl font-bold text-purple-700">{unreadCount}</p>
@@ -808,11 +967,10 @@ export default function Dashboard() {
                           <p className="text-sm text-gray-600">
                             Receipt Status:{" "}
                             <span
-                              className={`font-semibold ${
-                                getReceiptStatus(doc) === "Accepted"
-                                  ? "text-emerald-700"
-                                  : "text-yellow-700"
-                              }`}
+                              className={`font-semibold ${getReceiptStatus(doc) === "Accepted"
+                                ? "text-emerald-700"
+                                : "text-yellow-700"
+                                }`}
                             >
                               {getReceiptStatus(doc)}
                             </span>
@@ -837,6 +995,96 @@ export default function Dashboard() {
                       </div>
                       <p className="text-sm text-gray-700 mt-2">Route: {routeSummary(doc)}</p>
                       <p className="text-xs text-gray-500 mt-1">Updated: {formatDateTime(doc.updatedAt)}</p>
+
+                      <div className="mt-4 rounded border border-blue-100 bg-blue-50 p-3">
+                        <div className="flex flex-wrap gap-2">
+                          {!doc.file ? (
+                            <form onSubmit={(event) => handleUploadFile(doc, event)} className="flex flex-wrap gap-2">
+                              <input
+                                type="file"
+                                onChange={(event) =>
+                                  setSelectedFiles((prev) => ({ ...prev, [doc.trackingId]: event.target.files?.[0] || null }))
+                                }
+                                className="border border-gray-300 p-2 rounded text-sm"
+                              />
+                              <button
+                                type="submit"
+                                disabled={uploadingDocumentId === doc.trackingId}
+                                className="bg-blue-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+                              >
+                                {uploadingDocumentId === doc.trackingId ? "Uploading..." : "Upload File"}
+                              </button>
+                            </form>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handlePreviewFile(doc)}
+                                disabled={actionDocumentId === doc.trackingId}
+                                className="bg-indigo-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
+                              >
+                                Preview File
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadFile(doc)}
+                                disabled={actionDocumentId === doc.trackingId}
+                                className="bg-emerald-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-emerald-700 disabled:bg-gray-400"
+                              >
+                                Download File
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleShowVersions(doc)}
+                                disabled={actionDocumentId === doc.trackingId}
+                                className="bg-amber-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-amber-700 disabled:bg-gray-400"
+                              >
+                                Version History
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDocument(doc)}
+                                disabled={actionDocumentId === doc.trackingId}
+                                className="bg-red-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-red-700 disabled:bg-gray-400"
+                              >
+                                Delete Document
+                              </button>
+                            </>
+                          )}
+                        </div>
+
+                        {doc.file && (
+                          <div className="mt-3 text-sm text-gray-700">
+                            <p className="font-semibold">Attached file: {doc.file.originalFileName}</p>
+                            <p className="text-xs text-gray-500">
+                              {doc.file.fileExtension?.toUpperCase()} • {Math.round(doc.file.fileSize / 1024)} KB • Version {doc.file.currentVersion || 1}
+                            </p>
+                          </div>
+                        )}
+
+                        {versionHistoryByDoc[doc.trackingId]?.length > 0 && (
+                          <div className="mt-3 rounded border border-gray-200 bg-white p-3">
+                            <h4 className="font-semibold text-gray-800 mb-2">Version History</h4>
+                            <ul className="space-y-2 text-sm text-gray-700">
+                              {versionHistoryByDoc[doc.trackingId].map((version) => (
+                                <li key={`${version.versionNumber}-${version.storedFileName}`} className="border-b border-gray-100 pb-2 flex items-center justify-between gap-2">
+                                  <div>
+                                    <p>Version {version.versionNumber}: {version.originalFileName}</p>
+                                    <p className="text-xs text-gray-500">{formatDateTime(version.uploadedAt)}</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadVersion(doc, version)}
+                                    className="bg-slate-700 text-white px-2 py-1 rounded text-xs font-semibold"
+                                  >
+                                    Download
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

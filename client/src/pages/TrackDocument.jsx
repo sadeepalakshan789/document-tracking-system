@@ -2,10 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   acceptDocument,
+  deleteDocument,
+  downloadDocumentFile,
+  downloadDocumentVersion,
   forwardDocument,
   getDocument,
+  getDocumentVersions,
   getUsers,
+  previewDocumentFile,
   rerouteDocument,
+  uploadDocumentFile,
 } from "../services/api";
 import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
 
@@ -37,6 +43,11 @@ export default function TrackDocument() {
   const [rerouteUserId, setRerouteUserId] = useState("");
   const [beforeUserId, setBeforeUserId] = useState("");
   const [rerouteReason, setRerouteReason] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [versionHistory, setVersionHistory] = useState([]);
+  const [showVersions, setShowVersions] = useState(false);
+  const [loadingFileAction, setLoadingFileAction] = useState(false);
 
   const loadBaseData = async () => {
     try {
@@ -164,6 +175,119 @@ export default function TrackDocument() {
     }
   };
 
+  const handleFileUpload = async (e) => {
+    e.preventDefault();
+    if (!document || !selectedFile) {
+      setError("Please choose a file to upload");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+
+    try {
+      setUploadingFile(true);
+      setError("");
+      const res = await uploadDocumentFile(document.trackingId, formData);
+      setDocument(res.data.document);
+      setSelectedFile(null);
+      setSuccess(res.data.message || "File uploaded successfully");
+      e.target.reset();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to upload file");
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handlePreview = async () => {
+    if (!document) return;
+    try {
+      setLoadingFileAction(true);
+      setError("");
+      const res = await previewDocumentFile(document.trackingId);
+      const blobUrl = window.URL.createObjectURL(res.data);
+      window.open(blobUrl, "_blank");
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (err) {
+      const message = err.response?.data?.message || "Unable to preview file";
+      setError(message);
+    } finally {
+      setLoadingFileAction(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!document) return;
+    try {
+      setLoadingFileAction(true);
+      setError("");
+      const res = await downloadDocumentFile(document.trackingId);
+      const blobUrl = window.URL.createObjectURL(res.data);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = document.file?.originalFileName || "document";
+      link.click();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      const message = err.response?.data?.message || "Unable to download file";
+      setError(message);
+    } finally {
+      setLoadingFileAction(false);
+    }
+  };
+
+  const handleDownloadVersion = async (version) => {
+    if (!document) return;
+    try {
+      setLoadingFileAction(true);
+      setError("");
+      const res = await downloadDocumentVersion(document.trackingId, version.versionNumber);
+      const blobUrl = window.URL.createObjectURL(res.data);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = version.originalFileName || "document";
+      link.click();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      const message = err.response?.data?.message || "Unable to download version";
+      setError(message);
+    } finally {
+      setLoadingFileAction(false);
+    }
+  };
+
+  const handleShowVersions = async () => {
+    if (!document) return;
+    try {
+      setLoadingFileAction(true);
+      const res = await getDocumentVersions(document.trackingId);
+      setVersionHistory(res.data.versions || []);
+      setShowVersions(true);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load version history");
+    } finally {
+      setLoadingFileAction(false);
+    }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!document) return;
+    if (!window.confirm("Delete this document and its uploaded file?")) return;
+
+    try {
+      setLoadingFileAction(true);
+      setError("");
+      await deleteDocument(document.trackingId);
+      setDocument(null);
+      setSuccess("Document deleted successfully.");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete document");
+    } finally {
+      setLoadingFileAction(false);
+    }
+  };
+
   const pendingUsers = useMemo(() => {
     if (!document?.route) return [];
 
@@ -280,6 +404,94 @@ export default function TrackDocument() {
                 <p><span className="font-bold">Sender:</span> {document.sender?.name} ({document.sender?.email})</p>
                 <p><span className="font-bold">Current Holder:</span> {document.currentHolder?.name || "Completed"}</p>
                 <p className="md:col-span-2"><span className="font-bold">Description:</span> {document.content || "N/A"}</p>
+              </div>
+            </section>
+
+            <section className="bg-blue-50 border border-blue-100 rounded p-5">
+              <h4 className="text-lg font-bold text-gray-800 mb-3">Document Files</h4>
+              <div className="space-y-3">
+                <form onSubmit={handleFileUpload} className="flex flex-col gap-2 md:flex-row">
+                  <input
+                    type="file"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    className="flex-1 border border-gray-300 p-2 rounded"
+                  />
+                  <button
+                    type="submit"
+                    disabled={uploadingFile || loadingFileAction}
+                    className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+                  >
+                    {uploadingFile ? "Uploading..." : "Upload File"}
+                  </button>
+                </form>
+
+                {document.file ? (
+                  <div className="rounded border border-gray-200 bg-white p-3">
+                    <p className="text-sm font-semibold text-gray-800">Current file: {document.file.originalFileName}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {document.file.fileExtension?.toUpperCase()} • {Math.round(document.file.fileSize / 1024)} KB • Version {document.file.currentVersion || 1}
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={handlePreview}
+                        disabled={loadingFileAction}
+                        className="bg-indigo-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
+                      >
+                        Preview
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDownload}
+                        disabled={loadingFileAction}
+                        className="bg-emerald-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-emerald-700 disabled:bg-gray-400"
+                      >
+                        Download
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleShowVersions}
+                        disabled={loadingFileAction}
+                        className="bg-amber-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-amber-700 disabled:bg-gray-400"
+                      >
+                        Version History
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeleteDocument}
+                        disabled={loadingFileAction}
+                        className="bg-red-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-red-700 disabled:bg-gray-400"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600">No file uploaded yet.</p>
+                )}
+
+                {showVersions && versionHistory.length > 0 && (
+                  <div className="rounded border border-gray-200 bg-white p-3">
+                    <h5 className="font-semibold text-gray-800 mb-2">Version History</h5>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      {versionHistory.map((version) => (
+                        <li key={`${version.versionNumber}-${version.storedFileName}`} className="border-b border-gray-100 pb-2 flex items-center justify-between gap-2">
+                          <div>
+                            <p>Version {version.versionNumber}: {version.originalFileName}</p>
+                            <p className="text-xs text-gray-500">{formatDateTime(version.uploadedAt)}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadVersion(version)}
+                            className="bg-slate-700 text-white px-2 py-1 rounded text-xs font-semibold"
+                          >
+                            Download
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </section>
 

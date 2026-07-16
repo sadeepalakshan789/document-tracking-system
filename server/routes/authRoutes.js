@@ -19,7 +19,6 @@ const { protect, admin } = require("../middleware/auth");
 const router = express.Router();
 
 router.get("/positions", getCampusPositions);
-router.post("/register", registerUser);
 router.post("/verify-otp", verifyOTP);
 router.post("/login", loginUser);
 router.post("/resend-otp", resendOTP);

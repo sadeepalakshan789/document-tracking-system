@@ -71,12 +71,12 @@ export default function VerifyOTP() {
         <div className="absolute inset-0 bg-slate-900/45"></div>
         <div className="relative z-10 p-8 bg-white shadow-lg rounded-lg w-80 text-center">
           <h2 className="text-xl font-bold mb-4 text-gray-800">Error</h2>
-          <p className="text-red-500 mb-4">No email found. Please register again.</p>
+          <p className="text-red-500 mb-4">No email found. Please return to login.</p>
           <button
-            onClick={() => navigate("/register")}
+            onClick={() => navigate("/login")}
             className="bg-blue-500 text-white px-4 py-2 rounded font-semibold hover:bg-blue-600"
           >
-            Back to Registration
+            Back to Login
           </button>
         </div>
       </div>
@@ -128,8 +128,8 @@ export default function VerifyOTP() {
         </button>
 
         <p className="mt-4 text-center text-gray-600 text-sm">
-          <button onClick={() => navigate("/register")} className="text-blue-500 hover:underline">
-            Back to Registration
+          <button onClick={() => navigate("/login")} className="text-blue-500 hover:underline">
+            Back to Login
           </button>
         </p>
       </div>

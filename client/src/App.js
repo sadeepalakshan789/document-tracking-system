@@ -1,5 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
+// Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
 import VerifyOTP from './pages/VerifyOTP';
@@ -35,64 +37,80 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* ── Public routes ── */}
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
+
+        {/* Shown when a logged-in user tries a forbidden route */}
+        <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+        {/* ── Protected routes (any authenticated user) ── */}
         <Route
           path="/dashboard"
           element={
-            <PrivateRoute>
+            <ProtectedRoute>
               <Dashboard />
-            </PrivateRoute>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/create-document"
           element={
-            <PrivateRoute>
+            <ProtectedRoute>
               <CreateDocument />
-            </PrivateRoute>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/track-document"
           element={
-            <PrivateRoute>
+            <ProtectedRoute>
               <TrackDocument />
-            </PrivateRoute>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/track-document/:trackingId"
           element={
-            <PrivateRoute>
+            <ProtectedRoute>
               <TrackDocument />
-            </PrivateRoute>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/workflow-documents"
           element={
-            <PrivateRoute>
+            <ProtectedRoute>
               <WorkflowDocuments />
-            </PrivateRoute>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/notifications"
           element={
-            <PrivateRoute>
+            <ProtectedRoute>
               <Notifications />
-            </PrivateRoute>
+            </ProtectedRoute>
           }
         />
         <Route
           path="/settings"
           element={
-            <PrivateRoute>
+            <ProtectedRoute>
               <Settings />
-            </PrivateRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ── Super Admin and Admin Dashboard Route ── */}
+        <Route
+          path="/super-admin-dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'super-admin', 'SUPER_ADMIN']}>
+              <SuperAdminDashboard />
+            </ProtectedRoute>
           }
         />
         <Route

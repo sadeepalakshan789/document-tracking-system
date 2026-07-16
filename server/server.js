@@ -17,6 +17,7 @@ const startServer = async () => {
   app.use("/api/auth", require("./routes/authRoutes"));
   app.use("/api/documents", require("./routes/documentRoutes"));
   app.use("/api/notifications", require("./routes/notificationRoutes"));
+  app.use("/api/admin", require("./routes/adminRoutes")); // RBAC admin routes
 
   app.get("/", (req, res) => res.send("API Running"));
 

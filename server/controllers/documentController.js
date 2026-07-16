@@ -5,6 +5,14 @@ const mongoose = require("mongoose");
 const Document = require("../models/Document");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const {
+  buildStoredFileName,
+  deleteStoredFile,
+  ensureUploadDirectory,
+  getFileExtension,
+  resolveStoredFilePath,
+  validateFileUpload,
+} = require("../utils/fileUtils");
 
 const isSameId = (a, b) => String(a) === String(b);
 
@@ -40,6 +48,20 @@ const canAccessDocument = (doc, userId) => {
   const isSender = doc.sender?.userId && isSameId(doc.sender.userId, userId);
   const isInRoute = doc.route.some((step) => isSameId(step.userId, userId));
   return isSender || isInRoute;
+};
+
+const canAccessFile = (doc, userId) => {
+  const isSender = doc.sender?.userId && isSameId(doc.sender.userId, userId);
+  const isInRoute = doc.route.some((step) => isSameId(step.userId, userId));
+  return isSender || isInRoute;
+};
+
+const canPreviewDownloadFile = (doc, userId, userRole = "") => {
+  if (!doc || !userId) return false;
+  if (userRole === "admin") return true;
+  const isSender = doc.sender?.userId && isSameId(doc.sender.userId, userId);
+  const isRecipient = doc.route.some((step) => isSameId(step.userId, userId));
+  return isSender || isRecipient;
 };
 
 const createDocument = async (req, res) => {
@@ -552,6 +574,255 @@ const getAllDocuments = async (req, res) => {
   } catch (error) {
     console.error("getAllDocuments error:", error.message);
     return res.status(500).json({ message: "Failed to fetch documents" });
+  }
+};
+
+const uploadDocumentFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file was uploaded" });
+    }
+
+    const document = await Document.findOne({ trackingId: req.params.id });
+    if (!document) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    if (!canAccessDocument(document, req.user.id)) {
+      return res.status(403).json({ message: "You are not allowed to manage this document" });
+    }
+
+    const validation = validateFileUpload(req.file);
+    if (!validation.valid) {
+      deleteStoredFile(req.file.filename);
+      return res.status(400).json({ message: validation.message });
+    }
+
+    ensureUploadDirectory();
+    const storedFileName = buildStoredFileName(req.file.originalname);
+    const sourcePath = path.resolve(req.file.destination, req.file.filename);
+    const targetPath = resolveStoredFilePath(storedFileName);
+    fs.renameSync(sourcePath, targetPath);
+
+    const createdAt = new Date();
+    const fileExtension = getFileExtension(req.file.originalname);
+    const filePayload = {
+      originalFileName: req.file.originalname,
+      storedFileName,
+      filePath: `/uploads/${storedFileName}`,
+      fileExtension,
+      mimeType: req.file.mimetype,
+      fileSize: req.file.size,
+      uploadedAt: createdAt,
+      uploadedBy: {
+        userId: req.user.id,
+        name: req.user.name,
+        email: req.user.email,
+      },
+      currentVersion: 1,
+      versions: [],
+    };
+
+    let previousVersions = [];
+    let nextVersion = 1;
+
+    if (document.file) {
+      nextVersion = (document.file.currentVersion || 0) + 1;
+      previousVersions = document.file.versions || [];
+      previousVersions.push({
+        versionNumber: document.file.currentVersion || 1,
+        originalFileName: document.file.originalFileName,
+        storedFileName: document.file.storedFileName,
+        filePath: document.file.filePath,
+        fileExtension: document.file.fileExtension,
+        mimeType: document.file.mimeType,
+        fileSize: document.file.fileSize,
+        uploadedAt: document.file.uploadedAt,
+        uploadedBy: document.file.uploadedBy,
+      });
+    }
+
+    document.file = {
+      ...filePayload,
+      versions: previousVersions,
+      currentVersion: nextVersion,
+    };
+
+    document.history.push({
+      action: "DOCUMENT_FILE_UPLOADED",
+      description: `${req.user.name} uploaded a file for document ${document.trackingId}.`,
+      actorId: req.user.id,
+      actorName: req.user.name,
+      timestamp: createdAt,
+    });
+
+    await document.save();
+
+    return res.status(201).json({
+      message: "File uploaded successfully",
+      file: document.file,
+      document: buildDocumentResponse(document, req.user.id),
+    });
+  } catch (error) {
+    console.error("uploadDocumentFile error:", error.message);
+    return res.status(500).json({ message: "Failed to upload document file" });
+  }
+};
+
+const getDocumentFilePreview = async (req, res) => {
+  try {
+    const document = await Document.findOne({ trackingId: req.params.id });
+    if (!document) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    if (!canPreviewDownloadFile(document, req.user.id, req.user.role)) {
+      return res.status(403).json({ message: "You are not authorized to preview this file" });
+    }
+
+    if (!document.file?.storedFileName) {
+      return res.status(404).json({ message: "No file attached to this document" });
+    }
+
+    const filePath = resolveStoredFilePath(document.file.storedFileName);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: "File not found on disk" });
+    }
+
+    const extension = getFileExtension(document.file.originalFileName || document.file.storedFileName);
+    const previewableTypes = new Set(["pdf", "png", "jpg", "jpeg", "gif", "webp"]);
+
+    if (!previewableTypes.has(extension)) {
+      return res.status(400).json({ message: "Preview is not available for this file type. Please download the file." });
+    }
+
+    res.setHeader("Content-Type", document.file.mimeType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${document.file.originalFileName}"`);
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error("getDocumentFilePreview error:", error.message);
+    return res.status(500).json({ message: "Failed to preview document file" });
+  }
+};
+
+const downloadDocumentFile = async (req, res) => {
+  try {
+    const document = await Document.findOne({ trackingId: req.params.id });
+    if (!document) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    if (!canPreviewDownloadFile(document, req.user.id, req.user.role)) {
+      return res.status(403).json({ message: "You are not authorized to download this file" });
+    }
+
+    if (!document.file?.storedFileName) {
+      return res.status(404).json({ message: "No file attached to this document" });
+    }
+
+    const filePath = resolveStoredFilePath(document.file.storedFileName);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: "File not found on disk" });
+    }
+
+    res.setHeader("Content-Type", document.file.mimeType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${document.file.originalFileName}"`);
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error("downloadDocumentFile error:", error.message);
+    return res.status(500).json({ message: "Failed to download document file" });
+  }
+};
+
+const getDocumentVersions = async (req, res) => {
+  try {
+    const document = await Document.findOne({ trackingId: req.params.id });
+    if (!document) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    if (!canPreviewDownloadFile(document, req.user.id, req.user.role)) {
+      return res.status(403).json({ message: "You are not authorized to access file versions" });
+    }
+
+    const versions = [
+      {
+        versionNumber: document.file?.currentVersion || 1,
+        originalFileName: document.file?.originalFileName,
+        storedFileName: document.file?.storedFileName,
+        filePath: document.file?.filePath,
+        fileExtension: document.file?.fileExtension,
+        mimeType: document.file?.mimeType,
+        fileSize: document.file?.fileSize,
+        uploadedAt: document.file?.uploadedAt,
+        uploadedBy: document.file?.uploadedBy,
+      },
+      ...(document.file?.versions || []),
+    ];
+
+    return res.json({ versions });
+  } catch (error) {
+    console.error("getDocumentVersions error:", error.message);
+    return res.status(500).json({ message: "Failed to fetch document versions" });
+  }
+};
+
+const downloadDocumentVersion = async (req, res) => {
+  try {
+    const document = await Document.findOne({ trackingId: req.params.id });
+    if (!document) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    if (!canPreviewDownloadFile(document, req.user.id, req.user.role)) {
+      return res.status(403).json({ message: "You are not authorized to download this file version" });
+    }
+
+    const requestedVersion = Number(req.params.versionNumber);
+    const currentVersion = document.file?.currentVersion || 1;
+    const matchingVersion = requestedVersion === currentVersion
+      ? document.file
+      : (document.file?.versions || []).find((version) => version.versionNumber === requestedVersion);
+
+    if (!matchingVersion?.storedFileName) {
+      return res.status(404).json({ message: "Requested version was not found" });
+    }
+
+    const filePath = resolveStoredFilePath(matchingVersion.storedFileName);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: "Requested version file was not found on disk" });
+    }
+
+    res.setHeader("Content-Type", matchingVersion.mimeType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${matchingVersion.originalFileName}"`);
+    return res.sendFile(filePath);
+  } catch (error) {
+    console.error("downloadDocumentVersion error:", error.message);
+    return res.status(500).json({ message: "Failed to download document version" });
+  }
+};
+
+const deleteDocument = async (req, res) => {
+  try {
+    const document = await Document.findOne({ trackingId: req.params.id });
+    if (!document) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+
+    if (!canAccessDocument(document, req.user.id)) {
+      return res.status(403).json({ message: "You are not allowed to delete this document" });
+    }
+
+    if (document.file?.storedFileName) {
+      deleteStoredFile(document.file.storedFileName);
+    }
+
+    await Document.deleteOne({ _id: document._id });
+
+    return res.json({ message: "Document deleted successfully" });
+  } catch (error) {
+    console.error("deleteDocument error:", error.message);
+    return res.status(500).json({ message: "Failed to delete document" });
   }
 };
 

@@ -48,4 +48,27 @@ export const getMyNotifications = () => API.get("/notifications/mine");
 export const markNotificationRead = (id) => API.put(`/notifications/${id}/read`);
 export const markAllNotificationsRead = () => API.put("/notifications/read-all");
 
+// ── Admin / RBAC endpoints ────────────────────────────────────────────────────
+/** GET /api/admin/users – fetch all users & admins (super-admin + admin) */
+export const adminGetAllUsers = () => {
+  return API.get("/admin/users", {
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem('token')}`,
+    },
+  });
+};
+
+/** POST /api/admin/create-user – create a new user account (super-admin only) */
+export const adminCreateUser = (data) => API.post("/admin/create-user", data);
+
+/** POST /api/admin/create-admin – create a new admin account (super-admin only) */
+export const adminCreateAdmin = (data) => API.post("/admin/create-user", data);
+
+/** PATCH /api/admin/toggle-status/:userId – toggle active ↔ blocked (super-admin only) */
+export const adminToggleStatus = (userId) => API.patch(`/admin/toggle-status/${userId}`);
+
+/** DELETE /api/admin/user/:userId – permanently delete a user/admin (super-admin only) */
+export const adminDeleteUser = (userId) => API.delete(`/admin/user/${userId}`);
+
 export default API;
+
