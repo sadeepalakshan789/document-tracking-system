@@ -47,6 +47,23 @@ const currentHolderSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const fileSchema = new mongoose.Schema(
+  {
+    originalFileName: { type: String },
+    storedFileName: { type: String },
+    filePath: { type: String },
+    mimeType: { type: String },
+    fileSize: { type: Number },
+    uploadedAt: { type: Date },
+    uploadedBy: {
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      name: { type: String },
+      email: { type: String },
+    },
+  },
+  { _id: false }
+);
+
 const docSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
@@ -61,6 +78,7 @@ const docSchema = new mongoose.Schema(
     route: { type: [routeStepSchema], default: [] },
     currentHolderIndex: { type: Number, default: 0 },
     currentHolder: { type: currentHolderSchema, default: null },
+    file: { type: fileSchema, default: null },
     history: { type: [historySchema], default: [] },
   },
   { timestamps: true }

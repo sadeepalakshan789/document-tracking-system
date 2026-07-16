@@ -36,6 +36,13 @@ export const getAllDocuments = () => API.get("/documents/all");
 export const acceptDocument = (id) => API.put(`/documents/${id}/accept`);
 export const forwardDocument = (id, data = {}) => API.put(`/documents/${id}/forward`, data);
 export const rerouteDocument = (id, data) => API.put(`/documents/${id}/reroute`, data);
+export const uploadDocumentFile = (id, formData) => API.post(`/documents/${id}/upload`, formData);
+export const previewDocumentFile = (id) => API.get(`/documents/${id}/preview`, { responseType: "blob" });
+export const downloadDocumentFile = (id) => API.get(`/documents/${id}/download`, { responseType: "blob" });
+export const getDocumentVersions = (id) => API.get(`/documents/${id}/versions`);
+export const downloadDocumentVersion = (id, versionNumber) =>
+  API.get(`/documents/${id}/versions/${versionNumber}/download`, { responseType: "blob" });
+export const deleteDocument = (id) => API.delete(`/documents/${id}`);
 
 export const getMyNotifications = () => API.get("/notifications/mine");
 export const markNotificationRead = (id) => API.put(`/notifications/${id}/read`);

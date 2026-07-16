@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createDocument, getCurrentUser, getUsers } from "../services/api";
+import { createDocument, getCurrentUser, getUsers, uploadDocumentFile } from "../services/api";
 import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
 
 export default function CreateDocument() {
@@ -10,15 +10,15 @@ export default function CreateDocument() {
   const [content, setContent] = useState("");
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const [selectionMode, setSelectionMode] = useState("dropdown");
-  const [selectedUserId, setSelectedUserId] = useState("");
-  const [multiSelectedUserIds, setMultiSelectedUserIds] = useState([]);
+  const [recipientSearch, setRecipientSearch] = useState("");
   const [checkedUserIds, setCheckedUserIds] = useState([]);
   const [workflowUsers, setWorkflowUsers] = useState([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [fileError, setFileError] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -44,39 +44,36 @@ export default function CreateDocument() {
   }, [navigate]);
 
   const availableUsers = useMemo(() => {
-    const selectedIds = new Set(workflowUsers.map((user) => user._id));
-    return users.filter((user) => !selectedIds.has(user._id));
+    const selectedIds = new Set(workflowUsers.map((user) => String(user._id)));
+    return users.filter((user) => !selectedIds.has(String(user._id)));
   }, [users, workflowUsers]);
 
-  const recipientOptions = useMemo(
-    () => availableUsers.filter((user) => user._id !== currentUser?._id),
-    [availableUsers, currentUser]
-  );
+  const recipientOptions = useMemo(() => {
+    const filtered = availableUsers.filter((user) => String(user._id) !== String(currentUser?._id));
+    if (!recipientSearch.trim()) {
+      return filtered;
+    }
+
+    const searchTerm = recipientSearch.trim().toLowerCase();
+    return filtered.filter(
+      (user) =>
+        user.name.toLowerCase().includes(searchTerm) ||
+        user.email.toLowerCase().includes(searchTerm)
+    );
+  }, [availableUsers, currentUser, recipientSearch]);
 
   const addRecipientsByIds = (ids) => {
-    const uniqueIds = [...new Set(ids)].filter(Boolean);
+    const uniqueIds = [...new Set(ids.map((id) => String(id)))].filter(Boolean);
     if (!uniqueIds.length) return;
 
     setWorkflowUsers((prev) => {
-      const existingIds = new Set(prev.map((user) => user._id));
+      const existingIds = new Set(prev.map((user) => String(user._id)));
       const pickedUsers = uniqueIds
-        .map((id) => users.find((user) => user._id === id))
-        .filter((user) => user && !existingIds.has(user._id));
+        .map((id) => users.find((user) => String(user._id) === id))
+        .filter((user) => user && !existingIds.has(String(user._id)));
 
       return [...prev, ...pickedUsers];
     });
-  };
-
-  const handleAddRecipient = () => {
-    if (!selectedUserId) return;
-    addRecipientsByIds([selectedUserId]);
-    setSelectedUserId("");
-  };
-
-  const handleAddMultiSelectedRecipients = () => {
-    if (!multiSelectedUserIds.length) return;
-    addRecipientsByIds(multiSelectedUserIds);
-    setMultiSelectedUserIds([]);
   };
 
   const handleAddCheckedRecipients = () => {
@@ -111,6 +108,7 @@ export default function CreateDocument() {
     e.preventDefault();
     setError("");
     setMessage("");
+    setFileError("");
 
     if (!title.trim()) {
       setError("Please enter a title");
@@ -131,13 +129,34 @@ export default function CreateDocument() {
       };
 
       const res = await createDocument(payload);
-      setMessage(`Document created. Tracking ID: ${res.data.trackingId}`);
+      const uploadId = res.data.trackingId || res.data._id;
+
+      if (!uploadId) {
+        throw new Error("Document created but upload id is missing from response");
+      }
+
+      if (selectedFile) {
+        const fileForm = new FormData();
+        fileForm.append("file", selectedFile);
+        try {
+          await uploadDocumentFile(uploadId, fileForm);
+        } catch (uploadErr) {
+          const uploadMessage = uploadErr.response?.data?.message || uploadErr.message || "Failed to upload document file";
+          setError(`Document created, but file upload failed: ${uploadMessage}`);
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      setMessage(`Document created. Tracking ID: ${uploadId}`);
+      setSelectedFile(null);
 
       setTimeout(() => {
-        navigate(`/track-document/${res.data.trackingId}`);
+        navigate(`/track-document/${uploadId}`);
       }, 1200);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to create document");
+      const apiMessage = err.response?.data?.message || "Failed to create document";
+      setError(apiMessage);
     } finally {
       setSubmitting(false);
     }
@@ -203,136 +222,76 @@ export default function CreateDocument() {
             ></textarea>
           </div>
 
+          <div className="rounded border border-gray-200 bg-white p-4">
+            <h3 className="text-lg font-bold text-gray-800 mb-3">Attach a document file</h3>
+            <p className="text-sm text-gray-600 mb-3">
+              Optional: upload a file to attach to this workflow document. Supported formats include PDF, DOCX, XLSX, JPG, PNG.
+            </p>
+            <input
+              type="file"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              className="w-full border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500"
+            />
+            {selectedFile && (
+              <p className="mt-2 text-sm text-gray-700">Selected file: {selectedFile.name}</p>
+            )}
+            {fileError && <p className="mt-2 text-sm text-red-700">{fileError}</p>}
+          </div>
+
           <div className="bg-blue-50 border border-blue-100 rounded p-4">
             <h3 className="text-lg font-bold text-blue-900 mb-3">Workflow Sequence</h3>
 
             <div className="mb-4 p-3 bg-white border border-gray-200 rounded">
-              <p className="font-semibold text-gray-800 mb-2">User Selection Option</p>
-              <div className="flex flex-wrap gap-3 text-sm">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="selectionMode"
-                    value="dropdown"
-                    checked={selectionMode === "dropdown"}
-                    onChange={(e) => setSelectionMode(e.target.value)}
-                  />
-                  Dropdown (single select)
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="selectionMode"
-                    value="multiselect"
-                    checked={selectionMode === "multiselect"}
-                    onChange={(e) => setSelectionMode(e.target.value)}
-                  />
-                  Multi-select list
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="selectionMode"
-                    value="checkbox"
-                    checked={selectionMode === "checkbox"}
-                    onChange={(e) => setSelectionMode(e.target.value)}
-                  />
-                  Checkbox list
-                </label>
-              </div>
+              <p className="font-semibold text-gray-800 mb-2">Select recipients</p>
             </div>
 
-            {selectionMode === "dropdown" && (
-              <div className="flex gap-2 mb-3">
-                <select
-                  value={selectedUserId}
-                  onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="flex-1 border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500"
-                >
-                  <option value="">Select recipient</option>
-                  {recipientOptions.map((user) => (
-                    <option key={user._id} value={user._id}>
+            <div className="mb-3">
+              <div className="mb-3">
+                <label className="block text-sm font-semibold text-gray-700 mb-2" htmlFor="recipientSearch">
+                  Search recipients
+                </label>
+                <input
+                  id="recipientSearch"
+                  type="text"
+                  value={recipientSearch}
+                  onChange={(e) => setRecipientSearch(e.target.value)}
+                  placeholder="Search by name or email"
+                  className="w-full border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div className="max-h-48 overflow-y-auto border border-gray-300 rounded p-3 bg-white space-y-2">
+                {recipientOptions.length === 0 ? (
+                  <p className="text-sm text-gray-600">No matching users found.</p>
+                ) : (
+                  recipientOptions.map((user) => (
+                    <label key={user._id} className="flex items-center gap-2 text-sm text-gray-800">
+                      <input
+                        type="checkbox"
+                        checked={checkedUserIds.includes(user._id)}
+                        onChange={() => handleCheckboxToggle(user._id)}
+                      />
                       {user.name} ({user.email})
-                    </option>
-                  ))}
-                </select>
+                    </label>
+                  ))
+                )}
+              </div>
+              <div className="mt-2 flex gap-2">
                 <button
                   type="button"
-                  onClick={handleAddRecipient}
+                  onClick={handleAddCheckedRecipients}
                   className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700"
                 >
-                  Add
+                  Add Checked Users
                 </button>
-              </div>
-            )}
-
-            {selectionMode === "multiselect" && (
-              <div className="mb-3">
-                <label className="block text-sm text-gray-700 mb-2">
-                  Hold Ctrl (Windows) or Cmd (Mac) to pick multiple users.
-                </label>
-                <select
-                  multiple
-                  value={multiSelectedUserIds}
-                  onChange={(e) =>
-                    setMultiSelectedUserIds(
-                      Array.from(e.target.selectedOptions, (option) => option.value)
-                    )
-                  }
-                  className="w-full border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500 min-h-[150px]"
-                >
-                  {recipientOptions.map((user) => (
-                    <option key={user._id} value={user._id}>
-                      {user.name} ({user.email})
-                    </option>
-                  ))}
-                </select>
                 <button
                   type="button"
-                  onClick={handleAddMultiSelectedRecipients}
-                  className="mt-2 bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700"
+                  onClick={() => setCheckedUserIds([])}
+                  className="bg-gray-200 text-gray-700 px-4 py-2 rounded font-semibold hover:bg-gray-300"
                 >
-                  Add Selected Users
+                  Clear Checks
                 </button>
               </div>
-            )}
-
-            {selectionMode === "checkbox" && (
-              <div className="mb-3">
-                <div className="max-h-48 overflow-y-auto border border-gray-300 rounded p-3 bg-white space-y-2">
-                  {recipientOptions.length === 0 ? (
-                    <p className="text-sm text-gray-600">No available users.</p>
-                  ) : (
-                    recipientOptions.map((user) => (
-                      <label key={user._id} className="flex items-center gap-2 text-sm text-gray-800">
-                        <input
-                          type="checkbox"
-                          checked={checkedUserIds.includes(user._id)}
-                          onChange={() => handleCheckboxToggle(user._id)}
-                        />
-                        {user.name} ({user.email})
-                      </label>
-                    ))
-                  )}
-                </div>
-                <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleAddCheckedRecipients}
-                    className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700"
-                  >
-                    Add Checked Users
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCheckedUserIds([])}
-                    className="bg-gray-200 text-gray-700 px-4 py-2 rounded font-semibold hover:bg-gray-300"
-                  >
-                    Clear Checks
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
 
             <div className="space-y-2">
               <div className="p-3 rounded border border-green-200 bg-green-50 text-green-800 text-sm font-semibold">

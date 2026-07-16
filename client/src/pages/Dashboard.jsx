@@ -81,6 +81,7 @@ export default function Dashboard() {
   const [selectedTrackingId, setSelectedTrackingId] = useState("");
   const [lastSyncedAt, setLastSyncedAt] = useState(new Date());
   const [activeCardFilter, setActiveCardFilter] = useState("all");
+  const [documentSearch, setDocumentSearch] = useState("");
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.isRead).length,
@@ -103,16 +104,58 @@ export default function Dashboard() {
   }, [documents, notifications]);
 
   const filteredDocuments = useMemo(() => {
-    if (activeCardFilter === "action") return needsMyAction;
-    if (activeCardFilter === "notification") return unreadRelatedDocuments;
-    return documents;
+    const baseDocuments =
+      activeCardFilter === "action"
+        ? needsMyAction
+        : activeCardFilter === "notification"
+        ? unreadRelatedDocuments
+        : documents;
+
+    return baseDocuments;
   }, [activeCardFilter, documents, needsMyAction, unreadRelatedDocuments]);
 
+  const searchResults = useMemo(() => {
+    const normalizedSearch = documentSearch.trim().toLowerCase();
+    if (!normalizedSearch) return null;
+
+    return locationDocuments.filter((doc) => {
+      const title = String(doc.title || "").toLowerCase();
+      const trackingId = String(doc.trackingId || "").toLowerCase();
+      const senderName = String(doc.sender?.name || "").toLowerCase();
+      const currentHolder = String(doc.currentHolder?.name || "").toLowerCase();
+      const status = String(doc.status || "").toLowerCase();
+      const routeSummaryText = String(routeSummary(doc)).toLowerCase();
+      const updatedDate = formatDateTime(doc.updatedAt).toLowerCase();
+      const createdDate = formatDateTime(doc.createdAt).toLowerCase();
+      const isoUpdated = String(doc.updatedAt || "").toLowerCase();
+      const isoCreated = String(doc.createdAt || "").toLowerCase();
+
+      return (
+        title.includes(normalizedSearch) ||
+        trackingId.includes(normalizedSearch) ||
+        senderName.includes(normalizedSearch) ||
+        currentHolder.includes(normalizedSearch) ||
+        status.includes(normalizedSearch) ||
+        routeSummaryText.includes(normalizedSearch) ||
+        updatedDate.includes(normalizedSearch) ||
+        createdDate.includes(normalizedSearch) ||
+        isoUpdated.includes(normalizedSearch) ||
+        isoCreated.includes(normalizedSearch)
+      );
+    });
+  }, [documentSearch, locationDocuments]);
+
+  const displayedDocuments = useMemo(() => {
+    return searchResults !== null ? searchResults : filteredDocuments;
+  }, [searchResults, filteredDocuments]);
+
   const filteredDocumentsTitle = useMemo(() => {
+    const query = documentSearch.trim();
+    if (query) return `Search results for "${query}"`;
     if (activeCardFilter === "action") return "Documents Awaiting My Acceptance";
     if (activeCardFilter === "notification") return "Documents Related To Unread Notifications";
     return "Documents Assigned To Me";
-  }, [activeCardFilter]);
+  }, [activeCardFilter, documentSearch]);
 
   const canViewUserControl = useMemo(() => {
     const normalizedRole = String(user?.role || "").trim().toLowerCase();
@@ -321,46 +364,61 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="bg-blue-700 text-white p-4 shadow-md">
-        <div className="max-w-6xl mx-auto flex flex-wrap justify-between items-center gap-4">
-          <div className="flex items-center gap-3 md:-ml-[4.5cm]">
-            <div className="flex items-center gap-3">
-              <label className="relative w-[2cm] h-[2cm] rounded-full overflow-hidden bg-blue-900 flex items-center justify-center border border-blue-300/40 cursor-pointer hover:ring-2 hover:ring-white/40 transition">
-                {profilePhoto ? (
-                  <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-xl font-bold">
-                    {user?.name?.charAt(0)?.toUpperCase() || "U"}
-                  </span>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoUpload}
-                  className="hidden"
-                />
-              </label>
-              <div>
-                <p className="text-xl font-bold leading-tight">{user?.name || "User"}</p>
-                <p className="text-sm text-blue-100 leading-tight">
-                  {user?.position || "Position not set"}
-                </p>
-                <p className="text-sm text-blue-100/90 leading-tight mt-0.5">Click photo to update</p>
-                {profilePhoto && (
-                  <button
-                    onClick={handleRemovePhoto}
-                    className="mt-1 text-sm bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
+        <div className="max-w-6xl mx-auto flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <label className="relative w-[2cm] h-[2cm] rounded-full overflow-hidden bg-blue-900 flex items-center justify-center border border-white/20 cursor-pointer hover:ring-2 hover:ring-white/40 transition">
+              {profilePhoto ? (
+                <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xl font-bold">
+                  {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                </span>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
+            </label>
+            <div className="min-w-0">
+              <p className="text-lg font-semibold leading-tight truncate">{user?.name || "User"}</p>
+              <p className="text-sm text-blue-100 leading-tight truncate">
+                {user?.position || "Position not set"}
+              </p>
+              <p className="text-sm text-blue-100/90 leading-tight mt-0.5">Click photo to update</p>
             </div>
-
           </div>
 
-          <div className="text-right ml-auto md:translate-x-[3.5cm]">
+          <div className="order-first md:order-none md:flex-1 md:px-6 flex justify-center">
+            <div className="relative w-full max-w-[420px]">
+              <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">
+                <svg
+                  viewBox="0 0 24 24"
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+              </span>
+              <input
+                type="search"
+                value={documentSearch}
+                onChange={(e) => setDocumentSearch(e.target.value)}
+                placeholder="Search documents by title, tracking ID, sender, holder, status, route, or date"
+                className="w-full rounded-full border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition duration-150 ease-in-out focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end md:items-end">
             <h1 className="text-2xl font-bold">Document Workflow Dashboard</h1>
-            <p className="text-blue-100 text-sm">Signed in as {user?.email || "-"}</p>
+            <p className="text-sm text-blue-100">Signed in as {user?.email || "-"}</p>
           </div>
         </div>
       </header>
@@ -684,8 +742,34 @@ export default function Dashboard() {
             </section>
 
             <section ref={documentsSectionRef} className="bg-white p-6 rounded shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-800">{filteredDocumentsTitle}</h2>
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
+                <div className="space-y-2 md:space-y-0 md:flex md:items-center md:gap-4">
+                  <h2 className="text-xl font-bold text-gray-800">{filteredDocumentsTitle}</h2>
+                  <div className="relative w-full md:w-[320px]">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.3-4.3" />
+                      </svg>
+                    </span>
+                    <input
+                      type="search"
+                      value={documentSearch}
+                      onChange={(e) => setDocumentSearch(e.target.value)}
+                      placeholder="Search documents by title, tracking ID, sender, holder, or status"
+                      className="w-full border border-gray-300 rounded-full py-2.5 pl-10 pr-4 text-sm text-gray-700 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
                 <div className="flex gap-2">
                   {activeCardFilter !== "all" && (
                     <button
@@ -704,16 +788,17 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {filteredDocuments.length === 0 ? (
+              {displayedDocuments.length === 0 ? (
                 <p className="text-gray-500">
-                  {activeCardFilter === "all" && "No documents are currently assigned to you."}
-                  {activeCardFilter === "action" && "No documents are currently awaiting your acceptance."}
-                  {activeCardFilter === "notification" &&
+                  {documentSearch && "No documents match your search."}
+                  {!documentSearch && activeCardFilter === "all" && "No documents are currently assigned to you."}
+                  {!documentSearch && activeCardFilter === "action" && "No documents are currently awaiting your acceptance."}
+                  {!documentSearch && activeCardFilter === "notification" &&
                     "No documents are linked to unread notifications."}
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {filteredDocuments.map((doc) => (
+                  {displayedDocuments.map((doc) => (
                     <div key={doc._id} className="border border-gray-200 rounded p-4 bg-gray-50">
                       <div className="flex flex-wrap justify-between gap-3 items-start">
                         <div>
