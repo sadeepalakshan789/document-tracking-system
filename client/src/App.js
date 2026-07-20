@@ -14,6 +14,11 @@ import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
 import UserControl from './pages/UserControl';
 import UserProfile from './pages/UserProfile';
+import UnauthorizedPage from './pages/UnauthorizedPage';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
+
+// Components
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Optional: simple auth simulation using localStorage token
 const PrivateRoute = ({ children }) => {

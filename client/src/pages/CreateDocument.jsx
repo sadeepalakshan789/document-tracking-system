@@ -13,7 +13,6 @@ export default function CreateDocument() {
   const [recipientSearch, setRecipientSearch] = useState("");
   const [checkedUserIds, setCheckedUserIds] = useState([]);
   const [workflowUsers, setWorkflowUsers] = useState([]);
-  const [recipientSearch, setRecipientSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -269,20 +268,7 @@ export default function CreateDocument() {
                     )}
                   </div>
 
-            <div className="mb-3">
-              <div className="mb-3">
-                <label className="block text-sm font-semibold text-gray-700 mb-2" htmlFor="recipientSearch">
-                  Search recipients
-                </label>
-                <input
-                  id="recipientSearch"
-                  type="text"
-                  value={recipientSearch}
-                  onChange={(e) => setRecipientSearch(e.target.value)}
-                  placeholder="Search by name or email"
-                  className="w-full border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500"
-                />
-              </div>
+
               <div className="max-h-48 overflow-y-auto border border-gray-300 rounded p-3 bg-white space-y-2">
                 {recipientOptions.length === 0 ? (
                   <p className="text-sm text-gray-600">No matching users found.</p>

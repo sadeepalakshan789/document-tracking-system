@@ -80,7 +80,6 @@ const docSchema = new mongoose.Schema(
     currentHolder: { type: currentHolderSchema, default: null },
     file: { type: fileSchema, default: null },
     history: { type: [historySchema], default: [] },
-    file: { type: documentFileSchema, default: null },
   },
   { timestamps: true }
 );

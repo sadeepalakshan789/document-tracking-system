@@ -124,7 +124,7 @@ export default function Dashboard() {
     const normalizedSearch = documentSearch.trim().toLowerCase();
     if (!normalizedSearch) return null;
 
-    return locationDocuments.filter((doc) => {
+    return documents.filter((doc) => {
       const title = String(doc.title || "").toLowerCase();
       const trackingId = String(doc.trackingId || "").toLowerCase();
       const senderName = String(doc.sender?.name || "").toLowerCase();
@@ -149,7 +149,7 @@ export default function Dashboard() {
         isoCreated.includes(normalizedSearch)
       );
     });
-  }, [documentSearch, locationDocuments]);
+  }, [documentSearch, documents]);
 
   const displayedDocuments = useMemo(() => {
     return searchResults !== null ? searchResults : filteredDocuments;
@@ -567,17 +567,17 @@ export default function Dashboard() {
         {error && <p className="p-3 rounded text-sm font-medium" style={{backgroundColor: 'var(--error-bg)', color: 'var(--error-text)'}}>{error}</p>}
         {success && <p className="p-3 rounded text-sm font-medium" style={{backgroundColor: 'var(--success-bg)', color: 'var(--success-text)'}}>{success}</p>}
 
-        {searchQuery.trim() !== "" ? (
+        {documentSearch.trim() !== "" ? (
           <div className="theme-card rounded-3xl p-6 shadow-sm space-y-6">
             <div className="flex justify-between items-center border-b border-gray-150 pb-4">
               <div>
                 <h2 className="text-xl font-bold text-gray-800">Search Results</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  Found {searchResults.length} matching {searchResults.length === 1 ? "document" : "documents"} for "{searchQuery}"
+                  Found {searchResults.length} matching {searchResults.length === 1 ? "document" : "documents"} for "{documentSearch}"
                 </p>
               </div>
               <button
-                onClick={() => setSearchQuery("")}
+                onClick={() => setDocumentSearch("")}
                 className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold transition"
               >
                 Clear Search
@@ -1092,6 +1092,7 @@ export default function Dashboard() {
 
           </div>
         </div>
+        )}
       </main>
     </div>
   );

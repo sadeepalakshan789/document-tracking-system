@@ -28,9 +28,6 @@ router.get("/all", protect, getAllDocuments);
 router.put("/:id/accept", protect, acceptDocument);
 router.put("/:id/forward", protect, forwardDocument);
 router.put("/:id/reroute", protect, rerouteDocument);
-router.put("/:id/accept", protect, acceptDocument);
-router.put("/:id/forward", protect, forwardDocument);
-router.put("/:id/reroute", protect, rerouteDocument);
 router.put("/:id/status", protect, updateDocumentStatus);
 router.post("/:id/upload", protect, loadDocument, authorizeFileAccess, handleSingleUpload("file"), uploadDocumentFile);
 router.get("/:id/preview", protect, loadDocument, authorizeFileAccess, getDocumentFilePreview);
@@ -38,7 +35,6 @@ router.get("/:id/download", protect, loadDocument, authorizeFileAccess, download
 router.get("/:id/versions", protect, loadDocument, authorizeFileAccess, getDocumentVersions);
 router.get("/:id/versions/:versionNumber/download", protect, loadDocument, authorizeFileAccess, downloadDocumentVersion);
 router.delete("/:id", protect, loadDocument, authorizeFileAccess, deleteDocument);
-router.get("/:id", protect, getDocument);
 router.get("/:id", protect, getDocument);
 
 module.exports = router;

@@ -217,51 +217,9 @@ const createDocument = async (req, res) => {
   }
 };
 
-const uploadDocumentFile = async (req, res) => {
-  try {
-    const document = await Document.findOne({ trackingId: req.params.id });
 
-    if (!document) {
-      return res.status(404).json({ message: "Document not found" });
-    }
 
-    if (!canAccessDocument(document, req.user.id)) {
-      return res.status(403).json({ message: "You are not allowed to upload a file for this document" });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
-
-    const uploadPath = path.join(__dirname, "..", "uploads");
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-
-    document.file = {
-      originalFileName: req.file.originalname,
-      storedFileName: req.file.filename,
-      filePath: path.join(uploadPath, req.file.filename),
-      mimeType: req.file.mimetype,
-      fileSize: req.file.size,
-      uploadedAt: new Date(),
-      uploadedBy: {
-        userId: req.user.id,
-        name: req.user.name,
-        email: req.user.email,
-      },
-    };
-
-    await document.save();
-
-    return res.json({ message: "File uploaded successfully", document: buildDocumentResponse(document, req.user.id) });
-  } catch (error) {
-    console.error("uploadDocumentFile error:", error.message);
-    return res.status(500).json({ message: "Failed to upload file" });
-  }
-};
-
-const uploadDocumentFile = async (req, res) => {
+const getDocument = async (req, res) => {
   try {
     const document = await Document.findOne({ trackingId: req.params.id });
 
@@ -892,4 +850,9 @@ module.exports = {
   updateDocumentStatus,
   getAllDocuments,
   uploadDocumentFile,
+  getDocumentFilePreview,
+  downloadDocumentFile,
+  getDocumentVersions,
+  downloadDocumentVersion,
+  deleteDocument,
 };
