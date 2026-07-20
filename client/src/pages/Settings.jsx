@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ThemeToggle from "../components/ThemeToggle";
 import { getCampusPositions, getCurrentUser, updateCurrentUser } from "../services/api";
 
 export default function Settings() {
@@ -152,21 +153,22 @@ export default function Settings() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center text-gray-700 text-lg font-semibold">
+      <div className="min-h-screen theme-bg-primary flex items-center justify-center theme-text-main text-lg font-semibold">
         Loading settings...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-5xl mx-auto bg-white p-8 rounded shadow-md border border-gray-100">
+    <div className="min-h-screen theme-bg-primary p-6">
+      <div className="max-w-5xl mx-auto theme-card p-8 rounded shadow-md">
         <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Account Settings</h2>
-            <p className="text-sm text-gray-500">Update your profile details and password.</p>
+            <h2 className="text-2xl font-bold theme-text-main">Account Settings</h2>
+            <p className="text-sm theme-text-muted">Update your profile details and password.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
             <button
               onClick={handleReset}
               className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm font-semibold"
@@ -187,35 +189,35 @@ export default function Settings() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
+            <label className="block text-sm font-semibold theme-text-sec mb-1">Full Name</label>
             <input
               type="text"
               name="name"
               value={form.name}
               onChange={handleChange}
-              className="w-full border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500"
+              className="w-full theme-input border p-3 rounded"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-semibold theme-text-sec mb-1">Email</label>
             <input
               type="email"
               name="email"
               value={form.email}
               onChange={handleChange}
-              className="w-full border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500"
+              className="w-full theme-input border p-3 rounded"
             />
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Campus Position</label>
+            <label className="block text-sm font-semibold theme-text-sec mb-1">Campus Position</label>
             <select
               name="position"
               value={form.position}
               onChange={handleChange}
               disabled={positionsLoading}
-              className="w-full border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500 disabled:bg-gray-100"
+              className="w-full theme-input border p-3 rounded disabled:opacity-60"
             >
               <option value="">{positionsLoading ? "Loading positions..." : "Select Position"}</option>
               {!positions.includes(form.position) && form.position && (

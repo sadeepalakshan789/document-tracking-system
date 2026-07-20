@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 
 // Pages
 import Login from './pages/Login';
@@ -35,8 +36,9 @@ const AdminRoute = ({ children }) => {
 
 function App() {
   return (
-    <Router>
-      <Routes>
+    <ThemeProvider>
+      <Router>
+        <Routes>
         {/* ── Public routes ── */}
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<Login />} />
@@ -130,8 +132,10 @@ function App() {
           }
         />
         <Route path="*" element={<Navigate to="/dashboard" />} />
+
       </Routes>
-    </Router>
+      </Router>
+    </ThemeProvider>
   );
 }
 

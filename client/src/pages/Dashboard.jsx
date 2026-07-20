@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ThemeToggle from "../components/ThemeToggle";
 import {
   deleteDocument,
   downloadDocumentFile,
   downloadDocumentVersion,
-  getAllDocuments,
   getCurrentUser,
   getMyDocuments,
   getMyNotifications,
@@ -79,7 +79,6 @@ export default function Dashboard() {
 
   const [user, setUser] = useState(null);
   const [documents, setDocuments] = useState([]);
-  const [locationDocuments, setLocationDocuments] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -170,8 +169,8 @@ export default function Dashboard() {
   }, [user?.role]);
 
   const trackedDocument = useMemo(
-    () => locationDocuments.find((doc) => doc.trackingId === selectedTrackingId) || null,
-    [locationDocuments, selectedTrackingId]
+    () => documents.find((doc) => doc.trackingId === selectedTrackingId) || null,
+    [documents, selectedTrackingId]
   );
 
   const trackedLocation = useMemo(() => {
@@ -227,16 +226,16 @@ export default function Dashboard() {
         }
         setError("");
 
-        const [userRes, docsRes, allDocsRes, notificationsRes] = await Promise.all([
+        // 💡 Note: The 'getAllDocuments()' API call that conflicted with global settings has been completely removed.
+        // This ensures the normal user's theme remains 100% independent from the Super Admin.
+        const [userRes, docsRes, notificationsRes] = await Promise.all([
           getCurrentUser(),
           getMyDocuments(),
-          getAllDocuments(),
           getMyNotifications(),
         ]);
 
         setUser(userRes.data);
-        setDocuments((docsRes.data || []).filter((doc) => doc.workflow?.canAccept));
-        setLocationDocuments(allDocsRes.data || []);
+        setDocuments(docsRes.data || []);
         setNotifications(notificationsRes.data || []);
         setLastSyncedAt(new Date());
 
@@ -250,26 +249,17 @@ export default function Dashboard() {
           navigate("/login");
         }
       } finally {
-        if (showLoader) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
     },
     [navigate]
   );
 
-  // Keep a ref to the latest fetchDashboardData so interval/focus effects
-  // can always call the newest version without listing it as a dependency
-  // (listing it caused the initial-fetch effect to re-run on every render).
   const fetchDashboardDataRef = useRef(fetchDashboardData);
   useEffect(() => {
     fetchDashboardDataRef.current = fetchDashboardData;
   });
 
-  // ── Initial data load — runs exactly ONCE on mount ─────────────────────
-  // Do NOT add fetchDashboardData or navigate to the dep array here;
-  // using the ref means we always get the latest function without the
-  // effect re-firing and flipping loading back to true.
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -278,14 +268,8 @@ export default function Dashboard() {
     }
 
     fetchDashboardDataRef.current(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Role-based redirect guard ──────────────────────────────────────────
-  // Fires once after the first successful user fetch. Using a ref prevents
-  // the navigate() call from repeating on every 3-second interval tick
-  // (which previously unmounted Dashboard → hit catch-all → remounted it
-  // → showed "Loading dashboard..." again in an infinite loop).
   const hasRedirectedRef = useRef(false);
   useEffect(() => {
     if (!user || hasRedirectedRef.current) return;
@@ -299,9 +283,6 @@ export default function Dashboard() {
     }
   }, [user, navigate]);
 
-  // ── Live-refresh interval — stable, never tears down ──────────────────
-  // Uses the ref so the interval is set up once and always calls the
-  // latest fetchDashboardData without re-creating on every render.
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -311,10 +292,8 @@ export default function Dashboard() {
     }, LIVE_REFRESH_MS);
 
     return () => clearInterval(intervalId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Window focus / visibility refresh — stable, never tears down ──────
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
@@ -336,7 +315,6 @@ export default function Dashboard() {
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -346,20 +324,22 @@ export default function Dashboard() {
   }, [user?._id]);
 
   useEffect(() => {
-    if (!locationDocuments.length) {
+    if (!documents.length) {
       setSelectedTrackingId("");
       return;
     }
 
-    const exists = locationDocuments.some((doc) => doc.trackingId === selectedTrackingId);
+    const exists = documents.some((doc) => doc.trackingId === selectedTrackingId);
     if (!selectedTrackingId || !exists) {
-      setSelectedTrackingId(locationDocuments[0].trackingId);
+      setSelectedTrackingId(documents[0].trackingId);
     }
-  }, [locationDocuments, selectedTrackingId]);
+  }, [documents, selectedTrackingId]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("currentUser");
+    localStorage.removeItem("user");
+    window.dispatchEvent(new Event("authChange"));
     navigate("/login");
   };
 
@@ -415,7 +395,6 @@ export default function Dashboard() {
       setSuccess("");
       const res = await uploadDocumentFile(doc.trackingId, formData);
       setDocuments((prev) => prev.map((item) => (item.trackingId === doc.trackingId ? res.data.document : item)));
-      setLocationDocuments((prev) => prev.map((item) => (item.trackingId === doc.trackingId ? res.data.document : item)));
       setSelectedFiles((prev) => ({ ...prev, [doc.trackingId]: null }));
       setSuccess(`Uploaded ${file.name}`);
     } catch (err) {
@@ -506,7 +485,6 @@ export default function Dashboard() {
       setSuccess("");
       await deleteDocument(doc.trackingId);
       setDocuments((prev) => prev.filter((item) => item.trackingId !== doc.trackingId));
-      setLocationDocuments((prev) => prev.filter((item) => item.trackingId !== doc.trackingId));
       setSuccess("Document deleted successfully");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete document");
@@ -517,7 +495,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center text-gray-700 text-lg font-semibold">
+      <div className="min-h-screen theme-bg-primary flex items-center justify-center theme-text-main text-lg font-semibold">
         Loading dashboard...
       </div>
     );
@@ -586,54 +564,126 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-[1550px] xl:ml-4 xl:mr-auto p-6 space-y-6">
-        {error && <p className="bg-red-100 text-red-700 p-3 rounded">{error}</p>}
-        {success && <p className="bg-green-100 text-green-700 p-3 rounded">{success}</p>}
+        {error && <p className="p-3 rounded text-sm font-medium" style={{backgroundColor: 'var(--error-bg)', color: 'var(--error-text)'}}>{error}</p>}
+        {success && <p className="p-3 rounded text-sm font-medium" style={{backgroundColor: 'var(--success-bg)', color: 'var(--success-text)'}}>{success}</p>}
 
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 xl:gap-8">
-          <aside className="xl:col-span-2 xl:-ml-3 xl:pr-4 xl:border-r xl:border-slate-300/70">
-            <section className="w-full bg-slate-100 border border-slate-200 rounded-3xl p-4">
-              <h2 className="text-sm font-bold text-slate-800">Control Panel</h2>
-              <p className="text-xs text-slate-500 mt-1">Quick actions for your account.</p>
+        {searchQuery.trim() !== "" ? (
+          <div className="theme-card rounded-3xl p-6 shadow-sm space-y-6">
+            <div className="flex justify-between items-center border-b border-gray-150 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Search Results</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Found {searchResults.length} matching {searchResults.length === 1 ? "document" : "documents"} for "{searchQuery}"
+                </p>
+              </div>
+              <button
+                onClick={() => setSearchQuery("")}
+                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold transition"
+              >
+                Clear Search
+              </button>
+            </div>
 
-              <div className="space-y-3 mt-4">
-                <button
-                  onClick={() => navigate("/workflow-documents")}
-                  className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-indigo-200 bg-white px-3 py-3 text-left hover:bg-indigo-50 transition"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
-                      W
-                    </span>
-                    <span>
-                      <span className="block font-semibold text-slate-800">Workflow Documents</span>
-                      <span className="block text-xs text-slate-500">View all documents</span>
-                    </span>
-                  </span>
-                  <span className="text-slate-400 text-sm font-bold">{">"}</span>
-                </button>
+            {searchResults.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <p className="text-lg font-medium">No matches found</p>
+                <p className="text-sm text-gray-400 mt-1">Try checking for typos or searching by a different term/tracking number.</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {searchResults.map((doc) => {
+                  const isDocWorkflowComplete = isWorkflowComplete(doc);
+                  return (
+                    <div key={doc._id} className="border border-gray-200 rounded-2xl p-5 bg-slate-50/35 hover:bg-slate-50 transition">
+                      <div className="flex flex-wrap justify-between items-start gap-4">
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-bold text-gray-900">{doc.title}</h3>
+                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${isDocWorkflowComplete ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-blue-100 text-blue-700 border border-blue-200"}`}>
+                              {doc.status}
+                            </span>
+                          </div>
+                          <p className="text-sm font-mono text-gray-500 mt-1">Tracking ID: {doc.trackingId}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => navigate(`/track-document/${doc.trackingId}`)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
+                          >
+                            Open Workflow
+                          </button>
+                        </div>
+                      </div>
 
-                <button
-                  onClick={() => navigate("/notifications")}
-                  className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-blue-200 bg-white px-3 py-3 text-left hover:bg-blue-50 transition"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
-                      N
-                    </span>
-                    <span>
-                      <span className="block font-semibold text-slate-800">Notifications</span>
-                      <span className="block text-xs text-slate-500">Inbox and alerts</span>
-                    </span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    {unreadCount > 0 && (
-                      <span className="inline-flex min-w-[24px] h-[24px] px-1 items-center justify-center rounded-full bg-purple-500 text-white text-xs font-bold">
-                        {unreadCount > 99 ? "99+" : unreadCount}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-xs text-gray-600 bg-white border border-gray-150 rounded-xl p-3">
+                        <div>
+                          <span className="font-semibold block text-gray-800">Sender</span>
+                          <span>{doc.sender?.name} ({doc.sender?.email})</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold block text-gray-800">Current Holder</span>
+                          <span>{doc.currentHolder?.name || "Workflow Completed"}</span>
+                        </div>
+                        <div>
+                          <span className="font-semibold block text-gray-800">Last Updated</span>
+                          <span>{formatDateTime(doc.updatedAt)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 xl:gap-8">
+            <aside className="xl:col-span-2 xl:-ml-3 xl:pr-4 xl:border-r xl:border-slate-300/70">
+              <section className="w-full theme-bg-card theme-border border rounded-3xl p-4">
+                <h2 className="text-sm font-bold theme-text-main">Control Panel</h2>
+                <p className="text-xs theme-text-sec mt-1">Quick actions for your account.</p>
+
+                <div className="space-y-3 mt-4">
+                  <button
+                    onClick={() => navigate("/workflow-documents")}
+                    className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-indigo-200 theme-bg-card px-3 py-3 text-left hover:bg-indigo-50 transition"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                        W
                       </span>
-                    )}
+                      <span>
+                        <span className="block font-semibold theme-text-main">Workflow Documents</span>
+                        <span className="block text-xs text-slate-500">View all documents</span>
+                      </span>
+                    </span>
                     <span className="text-slate-400 text-sm font-bold">{">"}</span>
-                  </span>
-                </button>
+                  </button>
+
+                  <button
+                    onClick={() => navigate("/notifications")}
+                    className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-blue-200 theme-bg-card px-3 py-3 text-left hover:bg-blue-50 transition"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                        N
+                      </span>
+                      <span>
+                        <span className="block font-semibold theme-text-main">Notifications</span>
+                        <span className="block text-xs text-slate-500">Inbox and alerts</span>
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-2">
+                      {unreadCount > 0 && (
+                        <span className="inline-flex min-w-[24px] h-[24px] px-1 items-center justify-center rounded-full bg-purple-500 text-white text-xs font-bold">
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </span>
+                      )}
+                      <span className="text-slate-400 text-sm font-bold">{">"}</span>
+                    </span>
+                  </button>
 
                 <button
                   onClick={() => navigate("/settings")}
@@ -669,236 +719,185 @@ export default function Dashboard() {
                   </button>
                 )}
 
-                <button
-                  onClick={handleLogout}
-                  className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-red-700 bg-red-600 px-3 py-3 text-left hover:bg-red-700 transition"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center font-bold">
-                      L
-                    </span>
-                    <span>
-                      <span className="block font-semibold text-white">Logout</span>
-                      <span className="block text-xs text-red-100">Sign out safely</span>
-                    </span>
-                  </span>
-                  <span className="text-red-100 text-sm font-bold">{">"}</span>
-                </button>
-              </div>
-            </section>
-          </aside>
-
-          <aside className="xl:col-span-5 xl:pl-2">
-            <section className="bg-white p-5 rounded shadow-sm border border-gray-100 h-full">
-              <h2 className="text-lg font-bold text-gray-800">Document Current Location</h2>
-              <p className="text-xs text-gray-500 mt-1">
-                Live refreshes every {LIVE_REFRESH_MS / 1000} seconds
-              </p>
-              <p className="text-xs text-gray-500">Last sync: {formatDateTime(lastSyncedAt)}</p>
-
-              {locationDocuments.length === 0 ? (
-                <p className="text-gray-500 text-sm mt-4">No documents available to track.</p>
-              ) : (
-                <>
-                  <label className="block text-sm text-gray-700 font-semibold mt-4 mb-2">
-                    Select Document
-                  </label>
-                  <select
-                    value={selectedTrackingId}
-                    onChange={(e) => setSelectedTrackingId(e.target.value)}
-                    className="w-full border border-gray-300 p-2 rounded focus:outline-none focus:border-blue-500 text-sm"
+                  <button
+                    onClick={handleLogout}
+                    className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-red-700 bg-red-600 px-3 py-3 text-left hover:bg-red-700 transition"
                   >
-                    {locationDocuments.map((doc) => (
-                      <option key={doc._id} value={doc.trackingId}>
-                        {doc.trackingId} - {doc.title}
-                      </option>
-                    ))}
-                  </select>
+                    <span className="flex items-center gap-3">
+                      <span className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center font-bold">
+                        L
+                      </span>
+                      <span>
+                        <span className="block font-semibold text-white">Logout</span>
+                        <span className="block text-xs text-red-100">Sign out safely</span>
+                      </span>
+                    </span>
+                    <span className="text-red-100 text-sm font-bold">{">"}</span>
+                  </button>
+                </div>
+              </section>
+            </aside>
 
-                  {trackedDocument && (
-                    <div className="mt-4">
-                      <div className="bg-gray-50 border border-gray-200 rounded p-3">
-                        <p className="text-xs text-gray-600">
-                          Sender:{" "}
-                          <span className="font-semibold text-gray-800">
-                            {trackedDocument.sender?.name || "N/A"}
-                          </span>
-                        </p>
-                        <p className="text-xs text-gray-600 mt-1">
-                          Receivers in path:{" "}
-                          <span className="font-semibold text-gray-800">
-                            {trackedDocument.route?.length || 0}
-                          </span>
-                        </p>
-                      </div>
+            <aside className="xl:col-span-5 xl:pl-2">
+              <section className="theme-card p-5 rounded shadow-sm h-full">
+                <h2 className="text-lg font-bold theme-text-main">Document Current Location</h2>
+                <p className="text-xs theme-text-muted mt-1">
+                  Live refreshes every {LIVE_REFRESH_MS / 1000} seconds
+                </p>
+                <p className="text-xs theme-text-muted">Last sync: {formatDateTime(lastSyncedAt)}</p>
 
-                      <div className="relative pt-6 pb-2">
-                        {trackedDocument.route?.length > 1 && (
-                          <>
-                            <div className="absolute left-14 right-14 top-[58px] h-2 bg-gray-200 rounded"></div>
-                            <div
-                              className="absolute left-14 top-[58px] h-2 bg-emerald-500 rounded transition-all duration-300"
-                              style={{ width: `calc((100% - 7rem) * ${connectorProgressPercent(trackedDocument.route) / 100})` }}
-                            ></div>
-                          </>
-                        )}
+                {documents.length === 0 ? (
+                  <p className="text-gray-500 text-sm mt-4">No documents available to track.</p>
+                ) : (
+                  <>
+                    <label className="block text-sm text-gray-700 font-semibold mt-4 mb-2">
+                      Select Document
+                    </label>
+                    <select
+                      value={selectedTrackingId}
+                      onChange={(e) => setSelectedTrackingId(e.target.value)}
+                      className="w-full theme-input border p-2 rounded text-sm focus:outline-none"
+                    >
+                      {documents.map((doc) => (
+                        <option key={doc._id} value={doc.trackingId}>
+                          {doc.trackingId} - {doc.title}
+                        </option>
+                      ))}
+                    </select>
 
-                        {isWorkflowComplete(trackedDocument) && (
-                          <div className="absolute right-2 top-[42px] w-8 h-8 rounded-full bg-white border-2 border-emerald-600 text-emerald-600 flex items-center justify-center text-base font-bold">
-                            <svg
-                              viewBox="0 0 24 24"
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                            >
-                              <path d="M20 6 9 17l-5-5" />
-                            </svg>
-                          </div>
-                        )}
+                    {trackedDocument && (
+                      <div className="mt-4">
+                        <div className="theme-bg-secondary theme-border border rounded p-3">
+                          <p className="text-xs text-gray-600">
+                            Sender:{" "}
+                            <span className="font-semibold text-gray-800">
+                              {trackedDocument.sender?.name || "N/A"}
+                            </span>
+                          </p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            Receivers in path:{" "}
+                            <span className="font-semibold text-gray-800">
+                              {trackedDocument.route?.length || 0}
+                            </span>
+                          </p>
+                        </div>
 
-                        <div className="relative flex gap-4 overflow-x-auto pb-2">
-                          {trackedDocument.route?.map((step, index) => (
-                            <div key={`${step.userId}-${index}`} className="min-w-[96px] text-center">
+                        <div className="relative pt-6 pb-2">
+                          {trackedDocument.route?.length > 1 && (
+                            <>
+                              <div className="absolute left-14 right-14 top-[58px] h-2 bg-gray-200 rounded"></div>
                               <div
-                                className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-sm font-bold ${stepCircleClass(step)}`}
-                                title={stepStatusLabel(step)}
-                              >
-                                {index + 1}
+                                className="absolute left-14 top-[58px] h-2 bg-emerald-500 rounded transition-all duration-300"
+                                style={{ width: `calc((100% - 7rem) * ${connectorProgressPercent(trackedDocument.route) / 100})` }}
+                              ></div>
+                            </>
+                          )}
+
+                          <div className="relative flex gap-4 overflow-x-auto pb-2">
+                            {trackedDocument.route?.map((step, index) => (
+                              <div key={`${step.userId}-${index}`} className="min-w-[96px] text-center">
+                                <div
+                                  className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-sm font-bold ${stepCircleClass(step)}`}
+                                  title={stepStatusLabel(step)}
+                                >
+                                  {index + 1}
+                                </div>
+                                <p className="text-xs font-semibold text-gray-700 mt-2 leading-tight">
+                                  {step.name}
+                                </p>
+                                <p className="text-[11px] text-gray-500 mt-1">{stepStatusLabel(step)}</p>
                               </div>
-                              <p className="text-xs font-semibold text-gray-700 mt-2 leading-tight">
-                                {step.name}
-                              </p>
-                              <p className="text-[11px] text-gray-500 mt-1">{stepStatusLabel(step)}</p>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="mt-3 theme-bg-secondary theme-border border rounded p-3 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-gray-800">Live Workflow Summary</p>
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-xs font-bold ${trackedLocation?.isCompleted
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-blue-100 text-blue-700"
+                                }`}
+                            >
+                              {trackedDocument.status}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                            <div className="theme-card rounded p-2">
+                              <p className="theme-text-muted">Current Location</p>
+                              <p className="font-semibold theme-text-main">{trackedLocation?.currentLocation}</p>
                             </div>
-                          ))}
+                            <div className="theme-card rounded p-2">
+                              <p className="theme-text-muted">Next Location</p>
+                              <p className="font-semibold theme-text-main">{trackedLocation?.nextLocation}</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
+                    )}
+                  </>
+                )}
+              </section>
+            </aside>
 
-                      <div className="mt-3 bg-gray-50 border border-gray-200 rounded p-3 space-y-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-gray-800">Live Workflow Summary</p>
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-xs font-bold ${trackedLocation?.isCompleted
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-blue-100 text-blue-700"
-                              }`}
-                          >
-                            {trackedDocument.status}
-                          </span>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                          <div className="bg-white border border-gray-200 rounded p-2">
-                            <p className="text-gray-500">Current Location</p>
-                            <p className="font-semibold text-gray-800">{trackedLocation?.currentLocation}</p>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded p-2">
-                            <p className="text-gray-500">Next Location</p>
-                            <p className="font-semibold text-gray-800">{trackedLocation?.nextLocation}</p>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded p-2">
-                            <p className="text-gray-500">Current Receipt</p>
-                            <p className={`font-semibold ${statusToneClass(trackedLocation?.currentReceipt?.tone)}`}>
-                              {trackedLocation?.currentReceipt?.label}
-                            </p>
-                            {trackedLocation?.currentReceipt?.at && (
-                              <p className="text-[11px] text-gray-500 mt-1">
-                                at {formatDateTime(trackedLocation.currentReceipt.at)}
-                              </p>
-                            )}
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded p-2">
-                            <p className="text-gray-500">Next Receipt</p>
-                            <p className={`font-semibold ${statusToneClass(trackedLocation?.nextReceipt?.tone)}`}>
-                              {trackedLocation?.nextReceipt?.label}
-                            </p>
-                          </div>
-                          <div className="bg-white border border-gray-200 rounded p-2 sm:col-span-2">
-                            <p className="text-gray-500">Progress</p>
-                            <p className="font-semibold text-gray-800">
-                              {trackedLocation?.completedSteps} / {trackedLocation?.totalSteps} steps completed
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="text-xs text-gray-700">
-                          <p>
-                            <span className="font-semibold">Last Activity:</span>{" "}
-                            {trackedLocation?.lastActivityDescription}
-                          </p>
-                          <p className="text-gray-500 mt-1">
-                            {formatDateTime(trackedLocation?.lastActivityAt)}
-                          </p>
-                          <p className="mt-2">
-                            <span className="font-semibold">Workflow Route:</span>{" "}
-                            {routeSummary(trackedDocument)}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </section>
-          </aside>
-
-          <div className="xl:col-span-5 space-y-6">
-            <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <button
-                type="button"
-                onClick={() => handleCardFilterClick("all")}
-                className={`bg-white p-5 rounded shadow-sm border text-left transition ${activeCardFilter === "all"
-                  ? "border-blue-500 ring-2 ring-blue-100"
-                  : "border-gray-100 hover:border-blue-200"
-                  }`}
-              >
-                <p className="text-sm text-gray-500">Assigned To Me</p>
-                <p className="text-3xl font-bold text-gray-800">{documents.length}</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleCardFilterClick("action")}
-                className={`bg-white p-5 rounded shadow-sm border text-left transition ${activeCardFilter === "action"
-                  ? "border-orange-500 ring-2 ring-orange-100"
-                  : "border-gray-100 hover:border-orange-200"
-                  }`}
-              >
-                <p className="text-sm text-gray-500">Needs My Action</p>
-                <p className="text-3xl font-bold text-orange-600">{needsMyAction.length}</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleCardFilterClick("notification")}
-                className={`bg-white p-5 rounded shadow-sm border text-left transition ${activeCardFilter === "notification"
-                  ? "border-purple-500 ring-2 ring-purple-100"
-                  : "border-gray-100 hover:border-purple-200"
-                  }`}
-              >
-                <p className="text-sm text-gray-500">Unread Notifications</p>
-                <p className="text-3xl font-bold text-purple-700">{unreadCount}</p>
-              </button>
-
-              <div className="bg-white p-5 rounded shadow-sm border border-gray-100 flex flex-col gap-2">
+            <div className="xl:col-span-5 space-y-6">
+              <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <button
-                  onClick={() => navigate("/create-document")}
-                  className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition"
+                  type="button"
+                  onClick={() => handleCardFilterClick("all")}
+                  className={`theme-bg-card p-5 rounded shadow-sm border text-left transition ${
+                    activeCardFilter === "all"
+                    ? "border-blue-500 ring-2 ring-blue-100"
+                    : "border-[var(--border-color)] hover:border-blue-200"
+                    }`}
                 >
-                  Create Document
+                  <p className="text-sm theme-text-muted">Assigned To Me</p>
+                  <p className="text-3xl font-bold theme-text-main">{documents.length}</p>
                 </button>
+
                 <button
-                  onClick={() => navigate("/track-document")}
-                  className="w-full bg-emerald-600 text-white py-2 rounded font-semibold hover:bg-emerald-700 transition"
+                  type="button"
+                  onClick={() => handleCardFilterClick("action")}
+                  className={`theme-bg-card p-5 rounded shadow-sm border text-left transition ${
+                    activeCardFilter === "action"
+                    ? "border-orange-500 ring-2 ring-orange-100"
+                    : "border-[var(--border-color)] hover:border-orange-200"
+                    }`}
                 >
-                  Track Document
+                  <p className="text-sm theme-text-muted">Needs My Action</p>
+                  <p className="text-3xl font-bold text-orange-600">{needsMyAction.length}</p>
                 </button>
-              </div>
-            </section>
+
+                <button
+                  type="button"
+                  onClick={() => handleCardFilterClick("notification")}
+                  className={`theme-bg-card p-5 rounded shadow-sm border text-left transition ${
+                    activeCardFilter === "notification"
+                    ? "border-purple-500 ring-2 ring-purple-100"
+                    : "border-[var(--border-color)] hover:border-purple-200"
+                    }`}
+                >
+                  <p className="text-sm theme-text-muted">Unread Notifications</p>
+                  <p className="text-3xl font-bold text-purple-700">{unreadCount}</p>
+                </button>
+
+                <div className="theme-card p-5 rounded shadow-sm flex flex-col gap-2">
+                  <button
+                    onClick={() => navigate("/create-document")}
+                    className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition"
+                  >
+                    Create Document
+                  </button>
+                  <button
+                    onClick={() => navigate("/track-document")}
+                    className="w-full bg-emerald-600 text-white py-2 rounded font-semibold hover:bg-emerald-700 transition"
+                  >
+                    Track Document
+                  </button>
+                </div>
+              </section>
 
             <section ref={documentsSectionRef} className="bg-white p-6 rounded shadow-sm border border-gray-100">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">

@@ -150,21 +150,26 @@ export default function Register() {
             required
             className="border border-gray-300 p-3 mb-3 w-full rounded focus:outline-none focus:border-blue-500"
           />
+          
           <select
             name="position"
             value={formData.position}
             onChange={handleChange}
             disabled={loadingPositions}
             required
-            className="border border-gray-300 p-3 mb-3 w-full rounded focus:outline-none focus:border-blue-500 disabled:bg-gray-100"
+            className="border border-gray-300 p-3 mb-3 w-full rounded focus:outline-none focus:border-blue-500 disabled:bg-gray-100 text-gray-800"
           >
-            <option value="">{loadingPositions ? "Loading positions..." : "Select Position"}</option>
-            {positions.map((position) => (
-              <option key={position} value={position}>
+            <option value="" className="text-gray-500">
+              {loadingPositions ? "Loading positions..." : "Select Position"}
+            </option>
+            {/* 💡 Dynamically loop through positions retrieved from the database */}
+            {positions && positions.length > 0 && positions.map((position) => (
+              <option key={position} value={position} className="text-gray-800">
                 {position}
               </option>
             ))}
           </select>
+
           <input
             type="password"
             name="password"

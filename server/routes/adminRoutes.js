@@ -3,14 +3,23 @@ const router = express.Router();
 
 // ── Middleware ──
 const { protect, authorizeRoles, requireSuperAdmin } = require("../middleware/authMiddleware");
+const verifySuperAdmin = requireSuperAdmin;
 
 // ── Controller methods ──
+const {
+  getSettings,
+  updateSettings,
+  getAuditLogs,
+} = require("../controllers/settingsController");
 const {
   createUser,
   createAdmin,
   toggleUserStatus,
   getAllUsers,
   deleteUser,
+  getUserById,
+  updateUser,
+  getUserDocumentActivity,
 } = require("../controllers/adminController");
 
 // ─────────────────────────────────────────────
@@ -78,5 +87,64 @@ router.get(
   authorizeRoles("super-admin", "admin", "SUPER_ADMIN"),
   getAllUsers
 );
+
+/**
+ * GET /api/admin/users/:userId/activity
+ * Get a user's document activity (sent docs, workflow steps, action log).
+ * Access: super-admin only
+ * NOTE: Must be declared BEFORE /users/:userId so Express does not
+ *       treat the literal string "activity" as a :userId parameter.
+ */
+router.get(
+  "/users/:userId/activity",
+  protect,
+  requireSuperAdmin,
+  getUserDocumentActivity
+);
+
+/**
+ * GET /api/admin/users/:userId
+ * Fetch a single user's full profile.
+ * Access: super-admin only
+ */
+router.get(
+  "/users/:userId",
+  protect,
+  requireSuperAdmin,
+  getUserById
+);
+
+/**
+ * PUT /api/admin/users/:userId
+ * Update a user's role, position, and/or status.
+ * Access: super-admin only
+ */
+router.put(
+  "/users/:userId",
+  protect,
+  requireSuperAdmin,
+  updateUser
+);
+
+/**
+ * GET /api/admin/settings
+ * Fetch global settings configurations.
+ * Access: super-admin only
+ */
+router.get("/settings", protect, verifySuperAdmin, getSettings);
+
+/**
+ * PUT /api/admin/settings
+ * Update global settings configurations and sync positions.
+ * Access: super-admin only
+ */
+router.put("/settings", protect, verifySuperAdmin, updateSettings);
+
+/**
+ * GET /api/admin/audit-logs
+ * Fetch all system audit logs.
+ * Access: super-admin only
+ */
+router.get("/audit-logs", protect, verifySuperAdmin, getAuditLogs);
 
 module.exports = router;

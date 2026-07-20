@@ -2,16 +2,31 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1024; // 1 GB Limit
 const UPLOAD_ROOT = path.join(__dirname, "..", "uploads");
 
-const allowedExtensions = new Set(["pdf", "doc", "docx", "xls", "xlsx"]);
+const allowedExtensions = new Set([
+  "pdf", "doc", "docx", "xls", "xlsx", 
+  "jpg", "jpeg", "png", "txt", "zip", 
+  "rar", "7z", "csv", "ppt", "pptx"
+]);
+
 const allowedMimeTypes = new Map([
   ["pdf", "application/pdf"],
   ["doc", "application/msword"],
   ["docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
   ["xls", "application/vnd.ms-excel"],
   ["xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  ["jpg", "image/jpeg"],
+  ["jpeg", "image/jpeg"],
+  ["png", "image/png"],
+  ["txt", "text/plain"],
+  ["zip", "application/zip"],
+  ["rar", "application/x-rar-compressed"],
+  ["7z", "application/x-7z-compressed"],
+  ["csv", "text/csv"],
+  ["ppt", "application/vnd.ms-powerpoint"],
+  ["pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
 ]);
 
 const getAllowedMimeTypes = () => Object.fromEntries(allowedMimeTypes);
@@ -59,19 +74,17 @@ const validateFileUpload = (file) => {
   if (file.size > MAX_FILE_SIZE_BYTES) {
     return {
       valid: false,
-      message: "File is too large. Maximum allowed size is 10 MB.",
+      message: "File is too large. Maximum allowed size is 1 GB.",
     };
   }
 
   const extension = getFileExtension(file.originalname);
-  const expectedMimeType = allowedMimeTypes.get(extension);
-  const mimeMatches = expectedMimeType && file.mimetype === expectedMimeType;
   const extensionAllowed = allowedExtensions.has(extension);
 
-  if (!extensionAllowed || !mimeMatches) {
+  if (!extensionAllowed) {
     return {
       valid: false,
-      message: "Only PDF, DOC, DOCX, XLS, and XLSX files are allowed.",
+      message: `File format (.${extension}) is not allowed. Supported formats include PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, TXT, ZIP.`,
     };
   }
 
@@ -97,6 +110,7 @@ const deleteStoredFile = (storedFileName) => {
 module.exports = {
   MAX_FILE_SIZE_BYTES,
   UPLOAD_ROOT,
+  getUploadRoot,
   getAllowedMimeTypes,
   ensureUploadDirectory,
   getFileExtension,

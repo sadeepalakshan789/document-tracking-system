@@ -207,11 +207,11 @@ export default function WorkflowDocuments() {
     >
       <div className="absolute inset-0 bg-slate-900/45"></div>
       <div className="relative z-10 h-full p-6">
-        <div className="max-w-6xl mx-auto h-full bg-white/95 backdrop-blur-sm p-8 rounded shadow-md border border-gray-100 flex flex-col">
+        <div className="max-w-6xl mx-auto h-full theme-card backdrop-blur-sm p-8 rounded shadow-md flex flex-col">
           <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">Workflow Documents</h1>
-              <p className="text-sm text-gray-600">
+              <h1 className="text-2xl font-bold theme-text-main">Workflow Documents</h1>
+              <p className="text-sm theme-text-muted">
                 All workflow documents linked to {user?.email || "your account"}.
               </p>
             </div>
@@ -237,9 +237,9 @@ export default function WorkflowDocuments() {
           {message && <p className="bg-green-100 text-green-700 p-3 rounded mb-4">{message}</p>}
 
           <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-gray-50 border border-gray-200 p-4 rounded">
-              <p className="text-sm text-gray-500">Total Documents</p>
-              <p className="text-2xl font-bold text-gray-800">{documents.length}</p>
+            <div className="theme-bg-secondary theme-border border p-4 rounded">
+              <p className="text-sm theme-text-muted">Total Documents</p>
+              <p className="text-2xl font-bold theme-text-main">{documents.length}</p>
             </div>
             <div className="bg-orange-50 border border-orange-200 p-4 rounded">
               <p className="text-sm text-orange-700">In Transit</p>
@@ -257,13 +257,13 @@ export default function WorkflowDocuments() {
             ) : (
               <div className="space-y-3">
                 {documents.map((doc) => (
-                  <div key={doc._id} className="border border-gray-200 rounded p-4 bg-gray-50">
+                  <div key={doc._id} className="theme-border border rounded p-4 theme-bg-secondary">
                     <div className="flex flex-wrap justify-between items-start gap-3">
                       <div>
-                        <h2 className="text-lg font-bold text-gray-800">{doc.title}</h2>
-                        <p className="text-sm text-gray-600">Tracking ID: {doc.trackingId}</p>
-                        <p className="text-sm text-gray-600">Status: {doc.status}</p>
-                        <p className="text-sm text-gray-600">
+                        <h2 className="text-lg font-bold theme-text-main">{doc.title}</h2>
+                        <p className="text-sm theme-text-muted">Tracking ID: {doc.trackingId}</p>
+                        <p className="text-sm theme-text-muted">Status: {doc.status}</p>
+                        <p className="text-sm theme-text-muted">
                           Current Holder: {doc.currentHolder?.name || "Completed"}
                         </p>
                       </div>

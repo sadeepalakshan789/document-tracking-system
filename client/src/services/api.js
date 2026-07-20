@@ -36,7 +36,12 @@ export const getAllDocuments = () => API.get("/documents/all");
 export const acceptDocument = (id) => API.put(`/documents/${id}/accept`);
 export const forwardDocument = (id, data = {}) => API.put(`/documents/${id}/forward`, data);
 export const rerouteDocument = (id, data) => API.put(`/documents/${id}/reroute`, data);
-export const uploadDocumentFile = (id, formData) => API.post(`/documents/${id}/upload`, formData);
+export const uploadDocumentFile = (id, formData) =>
+  API.post(`/documents/${id}/upload`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+  });
 export const previewDocumentFile = (id) => API.get(`/documents/${id}/preview`, { responseType: "blob" });
 export const downloadDocumentFile = (id) => API.get(`/documents/${id}/download`, { responseType: "blob" });
 export const getDocumentVersions = (id) => API.get(`/documents/${id}/versions`);
@@ -69,6 +74,19 @@ export const adminToggleStatus = (userId) => API.patch(`/admin/toggle-status/${u
 
 /** DELETE /api/admin/user/:userId – permanently delete a user/admin (super-admin only) */
 export const adminDeleteUser = (userId) => API.delete(`/admin/user/${userId}`);
+
+/** GET /api/admin/users/:userId – fetch a single user's full profile (super-admin only) */
+export const adminGetUserById = (userId) => API.get(`/admin/users/${userId}`);
+
+/** PUT /api/admin/users/:userId – update role/position/status (super-admin only) */
+export const adminUpdateUser = (userId, data) => API.put(`/admin/users/${userId}`, data);
+
+/** GET /api/admin/users/:userId/activity – fetch document activity for a user (super-admin only) */
+export const adminGetUserActivity = (userId) => API.get(`/admin/users/${userId}/activity`);
+
+export const getAdminSettings = () => API.get("/admin/settings");
+export const updateAdminSettings = (data) => API.put("/admin/settings", data);
+export const getAuditLogs = () => API.get("/admin/audit-logs");
 
 export default API;
 

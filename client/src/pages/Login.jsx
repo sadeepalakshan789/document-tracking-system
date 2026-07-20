@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,14 +15,14 @@ export default function Login() {
     setError("");
 
     // Basic client-side validation
-    if (!email.trim() || !password.trim()) {
-      setError("Please enter your email and password.");
+    if (!identifier.trim() || !password.trim()) {
+      setError("Please enter your email or username and password.");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await loginUser({ email: email.trim(), password });
+      const res = await loginUser({ identifier: identifier.trim(), password });
       const userData = res.data;
 
       // ── Persist auth data to localStorage ──────────────────────────────
@@ -43,6 +43,9 @@ export default function Login() {
         })
       );
 
+      // Dispatch event for instant account-specific theme sync
+      window.dispatchEvent(new Event("authChange"));
+
       // ── Role-based redirect ─────────────────────────────────────────────
       const userRole = userData.role ? userData.role.toUpperCase() : "";
       if (userRole === "SUPER_ADMIN" || userRole === "SUPER-ADMIN") {
@@ -60,7 +63,7 @@ export default function Login() {
 
       // OTP verification required – redirect to the verify page
       if (errorData?.needsOTP) {
-        navigate("/verify-otp", { state: { email: email.trim() } });
+        navigate("/verify-otp", { state: { email: errorData?.email || identifier.trim() } });
         return;
       }
 
@@ -96,10 +99,10 @@ export default function Login() {
 
         <input
           id="login-email"
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          placeholder="Email or Username"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={loading}
           className="border border-gray-300 p-3 mb-3 w-full rounded focus:outline-none focus:border-blue-500 disabled:opacity-60"

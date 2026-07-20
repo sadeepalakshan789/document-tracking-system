@@ -100,11 +100,11 @@ export default function Notifications() {
     >
       <div className="absolute inset-0 bg-slate-900/45"></div>
       <div className="relative z-10 h-full p-6">
-      <div className="max-w-6xl mx-auto h-full bg-white/95 backdrop-blur-sm p-8 rounded shadow-md border border-gray-100 flex flex-col">
+      <div className="max-w-6xl mx-auto h-full theme-card backdrop-blur-sm p-8 rounded shadow-md flex flex-col">
         <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Notifications</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="text-2xl font-bold theme-text-main">Notifications</h2>
+            <p className="text-sm theme-text-muted">
               Unread: <span className="font-semibold">{unreadCount}</span>
             </p>
           </div>
@@ -137,11 +137,13 @@ export default function Notifications() {
                 <li
                   key={notification._id}
                   className={`p-4 rounded border ${
-                    notification.isRead ? "bg-gray-50 border-gray-200" : "bg-blue-50 border-blue-200"
+                    notification.isRead
+                      ? "theme-bg-secondary theme-border"
+                      : "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-700/40"
                   }`}
                 >
-                  <p className="text-base text-gray-800">{notification.message}</p>
-                  <p className="text-sm text-gray-500 mt-1">{formatDateTime(notification.createdAt)}</p>
+                  <p className="text-base theme-text-main">{notification.message}</p>
+                  <p className="text-sm theme-text-muted mt-1">{formatDateTime(notification.createdAt)}</p>
                 </li>
               ))}
             </ul>

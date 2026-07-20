@@ -13,6 +13,7 @@ export default function CreateDocument() {
   const [recipientSearch, setRecipientSearch] = useState("");
   const [checkedUserIds, setCheckedUserIds] = useState([]);
   const [workflowUsers, setWorkflowUsers] = useState([]);
+  const [recipientSearch, setRecipientSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -148,7 +149,7 @@ export default function CreateDocument() {
         }
       }
 
-      setMessage(`Document created. Tracking ID: ${uploadId}`);
+      setMessage(`Document created successfully. Tracking ID: ${uploadId}`);
       setSelectedFile(null);
 
       setTimeout(() => {
@@ -183,44 +184,39 @@ export default function CreateDocument() {
     >
       <div className="absolute inset-0 bg-slate-900/45"></div>
       <div className="relative z-10 h-full p-6">
-      <div className="max-w-4xl mx-auto h-full bg-white/95 backdrop-blur-sm p-8 rounded shadow-md border border-gray-100 flex flex-col">
-        <button
-          type="button"
-          onClick={() => navigate("/dashboard")}
-          className="mb-4 inline-flex items-center gap-2 bg-gray-100 text-gray-700 px-4 py-2 rounded font-semibold hover:bg-gray-200 transition"
-        >
-          {"<"} Back
-        </button>
-        <h2 className="text-2xl font-bold mb-2">Create Workflow Document</h2>
-        <p className="text-gray-600 mb-6 text-sm">
-          Define recipients in exact order. Everyone is notified immediately, and the document starts with recipient #1.
-        </p>
+        <div className="max-w-4xl mx-auto h-full theme-card backdrop-blur-sm p-8 rounded shadow-md flex flex-col">
+          <h2 className="text-2xl font-bold theme-text-main mb-2">Create Workflow Document</h2>
+          <p className="theme-text-muted mb-6 text-sm">
+            Define recipients in exact order. Everyone is notified immediately, and the document starts with recipient #1.
+          </p>
 
-        {error && <p className="mb-4 p-3 rounded bg-red-100 text-red-700">{error}</p>}
-        {message && <p className="mb-4 p-3 rounded bg-green-100 text-green-700">{message}</p>}
+          {error && <p className="mb-4 p-3 rounded bg-red-100 text-red-700 font-medium text-sm">{error}</p>}
+          {message && <p className="mb-4 p-3 rounded bg-green-100 text-green-700 font-medium text-sm">{message}</p>}
 
-        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
-          <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-6">
-          <div>
-            <label className="block text-gray-700 font-bold mb-2">Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              className="w-full border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500"
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-6">
+              <div>
+                <label className="block theme-text-sec font-bold mb-2">Title</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                  placeholder="Enter document title..."
+                  className="w-full theme-input border p-3 rounded"
+                />
+              </div>
 
-          <div>
-            <label className="block text-gray-700 font-bold mb-2">Description / Content</label>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows="4"
-              className="w-full border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500"
-            ></textarea>
-          </div>
+              <div>
+                <label className="block theme-text-sec font-bold mb-2">Description / Content</label>
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  rows="4"
+                  placeholder="Enter details or notes regarding this document..."
+                  className="w-full theme-input border p-3 rounded"
+                ></textarea>
+              </div>
 
           <div className="rounded border border-gray-200 bg-white p-4">
             <h3 className="text-lg font-bold text-gray-800 mb-3">Attach a document file</h3>
@@ -238,12 +234,40 @@ export default function CreateDocument() {
             {fileError && <p className="mt-2 text-sm text-red-700">{fileError}</p>}
           </div>
 
-          <div className="bg-blue-50 border border-blue-100 rounded p-4">
-            <h3 className="text-lg font-bold text-blue-900 mb-3">Workflow Sequence</h3>
+              <div className="theme-bg-secondary theme-border border rounded p-4 space-y-4">
+                <h3 className="text-lg font-bold theme-text-main">Workflow Sequence</h3>
 
-            <div className="mb-4 p-3 bg-white border border-gray-200 rounded">
-              <p className="font-semibold text-gray-800 mb-2">Select recipients</p>
-            </div>
+                {/* Recipient Selection Card with Search Bar */}
+                <div className="p-4 rounded-xl border border-gray-200 theme-bg-card shadow-sm space-y-3">
+                  <div className="flex flex-wrap justify-between items-center gap-2">
+                    <label className="font-bold text-sm theme-text-main">Select Recipients</label>
+                    <span className="text-xs theme-text-muted">
+                      {filteredRecipientOptions.length} available
+                    </span>
+                  </div>
+
+                  {/* Search Bar for Recipients */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search recipients by name, email or position..."
+                      value={recipientSearch}
+                      onChange={(e) => setRecipientSearch(e.target.value)}
+                      className="w-full theme-input border p-2.5 pl-9 rounded-xl text-sm focus:outline-none"
+                    />
+                    <svg className="w-4 h-4 text-gray-400 absolute left-3 top-3 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    {recipientSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setRecipientSearch("")}
+                        className="absolute right-3 top-2.5 text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
 
             <div className="mb-3">
               <div className="mb-3">
@@ -293,70 +317,74 @@ export default function CreateDocument() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="p-3 rounded border border-green-200 bg-green-50 text-green-800 text-sm font-semibold">
-                Sender: {currentUser?.name} ({currentUser?.email})
-              </div>
-
-              {workflowUsers.length === 0 ? (
-                <p className="text-gray-600 text-sm">No recipients added yet.</p>
-              ) : (
-                workflowUsers.map((user, index) => (
-                  <div key={user._id} className="p-3 rounded border border-gray-200 bg-white flex justify-between items-center gap-2">
-                    <div>
-                      <p className="font-semibold text-gray-800">
-                        Step {index + 1}: {user.name}
-                      </p>
-                      <p className="text-sm text-gray-600">{user.email}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => moveRecipient(index, -1)}
-                        className="bg-gray-100 px-3 py-1 rounded text-sm font-semibold hover:bg-gray-200"
-                      >
-                        Up
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveRecipient(index, 1)}
-                        className="bg-gray-100 px-3 py-1 rounded text-sm font-semibold hover:bg-gray-200"
-                      >
-                        Down
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveRecipient(user._id)}
-                        className="bg-red-100 text-red-700 px-3 py-1 rounded text-sm font-semibold hover:bg-red-200"
-                      >
-                        Remove
-                      </button>
-                    </div>
+                {/* Workflow Sequence List */}
+                <div className="space-y-2">
+                  <div className="p-3 rounded-xl border border-green-200 bg-green-50 text-green-800 text-sm font-semibold flex justify-between items-center">
+                    <span>Sender: {currentUser?.name} ({currentUser?.email})</span>
+                    <span className="text-xs px-2 py-0.5 rounded bg-green-200/60 text-green-900 font-bold">Creator</span>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-          </div>
 
-          <div className="flex gap-3 mt-4">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex-1 bg-blue-600 text-white py-3 rounded font-bold hover:bg-blue-700 transition disabled:bg-gray-400"
-            >
-              {submitting ? "Creating..." : "Create Document Workflow"}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard")}
-              className="flex-1 bg-gray-200 text-gray-700 py-3 rounded font-bold hover:bg-gray-300 transition"
-            >
-              Back to Dashboard
-            </button>
-          </div>
-        </form>
-      </div>
+                  {workflowUsers.length === 0 ? (
+                    <p className="text-gray-500 text-sm italic py-2">No recipients added to sequence yet.</p>
+                  ) : (
+                    workflowUsers.map((user, index) => (
+                      <div key={user._id} className="p-3 rounded-xl border border-gray-200 bg-white dark:bg-slate-900 flex justify-between items-center gap-2 shadow-sm">
+                        <div>
+                          <p className="font-bold text-sm theme-text-main">
+                            Step {index + 1}: {user.name}
+                          </p>
+                          <p className="text-xs text-gray-500">{user.email} {user.position ? `• ${user.position}` : ""}</p>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => moveRecipient(index, -1)}
+                            disabled={index === 0}
+                            className="bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-gray-700 px-2.5 py-1 rounded-lg text-xs font-semibold"
+                          >
+                            Up
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveRecipient(index, 1)}
+                            disabled={index === workflowUsers.length - 1}
+                            className="bg-gray-100 hover:bg-gray-200 disabled:opacity-30 text-gray-700 px-2.5 py-1 rounded-lg text-xs font-semibold"
+                          >
+                            Down
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRecipient(user._id)}
+                            className="bg-red-100 hover:bg-red-200 text-red-700 px-2.5 py-1 rounded-lg text-xs font-semibold"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:bg-gray-400 shadow"
+              >
+                {submitting ? "Creating Workflow..." : "Create Document Workflow"}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/dashboard")}
+                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-300 transition"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

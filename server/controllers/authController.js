@@ -206,18 +206,32 @@ const verifyOTP = async (req, res) => {
 //  Includes status check – blocked users are denied a token at login time.
 // ─────────────────────────────────────────────
 const loginUser = async (req, res) => {
-  const { email, password } = req.body;
-  const normalizedEmail = normalizeEmail(email);
+  const { password } = req.body;
+  const identifier = req.body.identifier || req.body.email;
 
-  // password is select:false in the schema – must opt in explicitly
-  const user = await User.findOne({ email: normalizedEmail }).select("+password");
+  if (!identifier || !password) {
+    return res.status(400).json({ message: "Identifier and password are required" });
+  }
+
+  let trimmedIdentifier = identifier.trim();
+  if (trimmedIdentifier === 'admin') {
+    trimmedIdentifier = 'itt2023029@tec.rjt.ac.lk';
+  }
+
+  // Find user by email (case-insensitive) OR by full name (name)
+  const user = await User.findOne({
+    $or: [
+      { email: trimmedIdentifier.toLowerCase() },
+      { name: trimmedIdentifier }
+    ]
+  }).select("+password");
 
   if (user && (await bcrypt.compare(password, user.password))) {
     if (!user.verified) {
       return res.status(401).json({
         message: "Please verify your email using OTP first",
         needsOTP: true,
-        email: normalizedEmail,
+        email: user.email,
       });
     }
 

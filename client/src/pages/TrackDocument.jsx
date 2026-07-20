@@ -354,7 +354,7 @@ export default function TrackDocument() {
     >
       <div className="absolute inset-0 bg-slate-900/45"></div>
       <div className="relative z-10 h-full p-6">
-      <div className="max-w-5xl mx-auto h-full bg-white/95 backdrop-blur-sm p-8 rounded shadow-md border border-gray-100 flex flex-col">
+      <div className="max-w-5xl mx-auto h-full theme-card backdrop-blur-sm p-8 rounded shadow-md flex flex-col">
         <button
           type="button"
           onClick={() => navigate("/dashboard")}
@@ -362,13 +362,13 @@ export default function TrackDocument() {
         >
           {"<"} Back
         </button>
-        <h2 className="text-2xl font-bold mb-2">Track Workflow Document</h2>
-        <p className="text-gray-600 mb-6 text-sm">
+        <h2 className="text-2xl font-bold theme-text-main mb-2">Track Workflow Document</h2>
+        <p className="theme-text-muted mb-6 text-sm">
           Sender and recipients can track current holder and workflow progress in real time.
         </p>
 
         <div className="mb-6">
-          <label className="block text-gray-700 font-bold mb-2">Tracking ID</label>
+          <label className="block theme-text-sec font-bold mb-2">Tracking ID</label>
           <form onSubmit={handleTrack}>
             <div className="flex gap-2">
               <input
@@ -377,7 +377,7 @@ export default function TrackDocument() {
                 onChange={(e) => setDocumentId(e.target.value)}
                 placeholder="Enter tracking ID (e.g., DOC-ABC12345)"
                 required
-                className="flex-1 border border-gray-300 p-3 rounded focus:outline-none focus:border-blue-500"
+                className="flex-1 theme-input border p-3 rounded"
               />
               <button
                 type="submit"
@@ -396,9 +396,9 @@ export default function TrackDocument() {
         <div className="flex-1 min-h-0 overflow-y-auto pr-1">
         {document && (
           <div className="space-y-6 pb-1">
-            <section className="bg-gray-50 border border-gray-200 rounded p-5">
-              <h3 className="text-xl font-bold text-gray-800 mb-3">{document.title}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-700">
+            <section className="theme-bg-secondary theme-border border rounded p-5">
+              <h3 className="text-xl font-bold theme-text-main mb-3">{document.title}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm theme-text-sec">
                 <p><span className="font-bold">Tracking ID:</span> {document.trackingId}</p>
                 <p><span className="font-bold">Status:</span> {document.status}</p>
                 <p><span className="font-bold">Sender:</span> {document.sender?.name} ({document.sender?.email})</p>
@@ -407,14 +407,14 @@ export default function TrackDocument() {
               </div>
             </section>
 
-            <section className="bg-blue-50 border border-blue-100 rounded p-5">
-              <h4 className="text-lg font-bold text-gray-800 mb-3">Document Files</h4>
+            <section className="theme-bg-secondary theme-border border rounded p-5">
+              <h4 className="text-lg font-bold theme-text-main mb-3">Document Files</h4>
               <div className="space-y-3">
                 <form onSubmit={handleFileUpload} className="flex flex-col gap-2 md:flex-row">
                   <input
                     type="file"
                     onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                    className="flex-1 border border-gray-300 p-2 rounded"
+                    className="flex-1 theme-input border p-2 rounded"
                   />
                   <button
                     type="submit"

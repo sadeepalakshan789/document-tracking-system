@@ -2,21 +2,119 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Theme CSS Custom Properties
+   Dark mode is the default. Light mode overrides are applied when the html
+   element has [data-theme="light"] or the .light-mode class.
+───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Dark theme (default) */
+  --bg-primary:       #0f172a;
+  --bg-secondary:     #1e293b;
+  --bg-card:          #1e293b;
+  --bg-card-hover:    #263248;
+  --bg-header:        #0f172a;
+  --bg-sidebar:       #020617;
+  --bg-input:         #020617;
+  --text-main:        #f1f5f9;
+  --text-secondary:   #94a3b8;
+  --text-muted:       #64748b;
+  --border-color:     #334155;
+  --border-subtle:    #1e293b;
+  --accent:           #7c3aed;
+  --accent-hover:     #6d28d9;
+  --accent-muted:     rgba(124, 58, 237, 0.15);
+  --shadow-color:     rgba(0, 0, 0, 0.4);
+  --error-bg:         rgba(127, 29, 29, 0.4);
+  --error-text:       #fca5a5;
+  --success-bg:       rgba(6, 78, 59, 0.4);
+  --success-text:     #6ee7b7;
+}
+
+/* Light mode overrides */
+:root[data-theme="light"],
+html.light-mode {
+  --bg-primary:       #f8fafc;
+  --bg-secondary:     #f1f5f9;
+  --bg-card:          #ffffff;
+  --bg-card-hover:    #f8fafc;
+  --bg-header:        #1e3a8a;
+  --bg-sidebar:       #1e40af;
+  --bg-input:         #ffffff;
+  --text-main:        #0f172a;
+  --text-secondary:   #475569;
+  --text-muted:       #94a3b8;
+  --border-color:     #e2e8f0;
+  --border-subtle:    #f1f5f9;
+  --accent:           #7c3aed;
+  --accent-hover:     #6d28d9;
+  --accent-muted:     rgba(124, 58, 237, 0.08);
+  --shadow-color:     rgba(0, 0, 0, 0.08);
+  --error-bg:         #fee2e2;
+  --error-text:       #b91c1c;
+  --success-bg:       #dcfce7;
+  --success-text:     #15803d;
+}
+
+/* Smooth theme transitions for all elements */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: ease-in-out;
+}
+
+/* Opt out of transitions for elements that should not animate */
+img,
+svg,
+video,
+canvas {
+  transition: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Theme Utility Classes  — use these in JSX instead of raw Tailwind
+───────────────────────────────────────────────────────────────────────────── */
+.theme-bg-primary   { background-color: var(--bg-primary); }
+.theme-bg-secondary { background-color: var(--bg-secondary); }
+.theme-bg-card      { background-color: var(--bg-card); }
+.theme-bg-input     { background-color: var(--bg-input); }
+.theme-bg-header    { background-color: var(--bg-header); }
+.theme-bg-sidebar   { background-color: var(--bg-sidebar); }
+.theme-text-main    { color: var(--text-main); }
+.theme-text-sec     { color: var(--text-secondary); }
+.theme-text-muted   { color: var(--text-muted); }
+.theme-border       { border-color: var(--border-color); }
+.theme-border-subtle{ border-color: var(--border-subtle); }
+
+/* Card style shorthand */
+.theme-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+/* Input style shorthand */
+.theme-input {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+.theme-input::placeholder { color: var(--text-muted); }
+.theme-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Shared Auth wallpaper animation
+───────────────────────────────────────────────────────────────────────────── */
 @keyframes authWallpaperMotion {
-  0% {
-    background-position: 50% 50%;
-    background-size: 100%;
-  }
-
-  50% {
-    background-position: 55% 45%;
-    background-size: 108%;
-  }
-
-  100% {
-    background-position: 50% 50%;
-    background-size: 100%;
-  }
+  0%   { background-position: 50% 50%; background-size: 100%; }
+  50%  { background-position: 55% 45%; background-size: 108%; }
+  100% { background-position: 50% 50%; background-size: 100%; }
 }
 
 .auth-wallpaper-animate {
@@ -24,7 +122,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .auth-wallpaper-animate {
-    animation: none;
-  }
+  .auth-wallpaper-animate { animation: none; }
 }

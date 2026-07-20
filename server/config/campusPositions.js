@@ -9,23 +9,25 @@ const DEFAULT_CAMPUS_POSITIONS = [
   "Associate Professor",
   "Campus Manager",
   "Chancellor",
-  "Dean" , 
   "Dean",
-  "Head of Department (HOD)",
   "Department Coordinator",
   "Finance Officer / Bursar",
   "Graduate Assistant",
   "Head Librarian / Librarian",
+  "Head of Department (HOD)",
   "IT Officer / Systems Administrator",
   "Lab Assistant / Lab Technician",
   "Lecturer",
+  "Management Assistant",
   "Postdoctoral Fellow / Research Fellow",
-  "Program Coordinator",
   "Professor",
+  "Program Coordinator",
   "Registrar",
   "Research Assistant / Research Associate",
   "Student Representative / Student Leader",
+  "System Administrator",
   "Teaching Assistant (TA)",
+  "Technical Officer",
   "Vice Chancellor (VC)",
   "Vice Dean",
   "Warden (Hostel / Campus Housing)",
@@ -51,7 +53,7 @@ const ensureCampusPositions = async () => {
     { $set: { active: false } }
   );
 
-  console.log("Campus positions synchronized");
+  console.log("Campus positions synchronized successfully.");
 };
 
 module.exports = { ensureCampusPositions };

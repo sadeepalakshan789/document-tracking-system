@@ -5,6 +5,8 @@ const mongoose = require("mongoose");
 const Document = require("../models/Document");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
+const { sendNotificationEmail } = require("../utils/sendEmail"); // 💡 Import Brevo Helper utility
+
 const {
   buildStoredFileName,
   deleteStoredFile,
@@ -15,6 +17,41 @@ const {
 } = require("../utils/fileUtils");
 
 const isSameId = (a, b) => String(a) === String(b);
+
+// 📧 Asynchronous background email dispatcher (prevents blocking the main response)
+const dispatchBackgroundEmails = async (notifications) => {
+  try {
+    for (const notif of notifications) {
+      if (!notif.userId) continue;
+
+      let senderId = null;
+      if (notif.documentId) {
+        const doc = await Document.findById(notif.documentId).select("sender");
+        if (doc && doc.sender?.userId) {
+          senderId = doc.sender.userId;
+        }
+      }
+
+      // 💡 1. Completely prevent sending emails to the document creator/sender
+      if (senderId && isSameId(notif.userId, senderId)) {
+        continue;
+      }
+
+      // 💡 2. Send emails to all remaining added recipients
+      const user = await User.findById(notif.userId).select("name email");
+      if (user && user.email) {
+        sendNotificationEmail(
+          user.email,
+          user.name,
+          `Document Update: ${notif.trackingId}`,
+          notif.message
+        ).catch((err) => console.error("Brevo Background Dispatch Error:", err.message));
+      }
+    }
+  } catch (error) {
+    console.error("Email dispatch queue error:", error.message);
+  }
+};
 
 const buildDocumentResponse = (doc, currentUserId) => {
   const currentHolderId = doc.currentHolder?.userId ? String(doc.currentHolder.userId) : null;
@@ -44,7 +81,8 @@ const buildDocumentResponse = (doc, currentUserId) => {
   };
 };
 
-const canAccessDocument = (doc, userId) => {
+const canAccessDocument = (doc, userId, role = "") => {
+  if (role === "super-admin" || role === "SUPER_ADMIN") return true;
   const isSender = doc.sender?.userId && isSameId(doc.sender.userId, userId);
   const isInRoute = doc.route.some((step) => isSameId(step.userId, userId));
   return isSender || isInRoute;
@@ -68,11 +106,7 @@ const createDocument = async (req, res) => {
   try {
     const { title, content = "", routeUserIds = [], receiver } = req.body;
 
-    const routeIds = Array.isArray(routeUserIds)
-      ? routeUserIds
-      : receiver
-        ? [receiver]
-        : [];
+    const routeIds = Array.isArray(routeUserIds) ? routeUserIds : receiver ? [receiver] : [];
 
     if (!title || routeIds.length === 0) {
       return res.status(400).json({ message: "Please provide title and at least one recipient" });
@@ -149,7 +183,6 @@ const createDocument = async (req, res) => {
     });
 
     const notifications = [];
-
     for (let index = 0; index < route.length; index += 1) {
       const step = route[index];
       const isCurrent = index === 0;
@@ -173,6 +206,9 @@ const createDocument = async (req, res) => {
     });
 
     await Notification.insertMany(notifications);
+
+    // 🚀 Initiate background email dispatch
+    dispatchBackgroundEmails(notifications);
 
     return res.status(201).json(buildDocumentResponse(document, req.user.id));
   } catch (error) {
@@ -225,7 +261,7 @@ const uploadDocumentFile = async (req, res) => {
   }
 };
 
-const getDocument = async (req, res) => {
+const uploadDocumentFile = async (req, res) => {
   try {
     const document = await Document.findOne({ trackingId: req.params.id });
 
@@ -247,14 +283,18 @@ const getDocument = async (req, res) => {
 const getMyDocuments = async (req, res) => {
   try {
     const documents = await Document.find({
-      "currentHolder.userId": req.user.id,
+      $or: [
+        { "currentHolder.userId": req.user.id },
+        { "sender.userId": req.user.id },
+        { "route.userId": req.user.id },
+      ],
     }).sort({ updatedAt: -1 });
 
-    const assignedDocuments = documents
-      .map((doc) => buildDocumentResponse(doc, req.user.id))
-      .filter((doc) => doc.workflow?.canAccept);
+    const formattedDocuments = documents.map((doc) =>
+      buildDocumentResponse(doc, req.user.id)
+    );
 
-    return res.json(assignedDocuments);
+    return res.json(formattedDocuments);
   } catch (error) {
     console.error("getMyDocuments error:", error.message);
     return res.status(500).json({ message: "Failed to fetch documents" });
@@ -303,7 +343,7 @@ const acceptDocument = async (req, res) => {
 
     await document.save();
 
-    await Notification.insertMany([
+    const newNotifs = [
       {
         userId: document.sender.userId,
         documentId: document._id,
@@ -311,7 +351,12 @@ const acceptDocument = async (req, res) => {
         type: "system",
         message: `${req.user.name} accepted document ${document.trackingId}.`,
       },
-    ]);
+    ];
+
+    await Notification.insertMany(newNotifs);
+    
+    // 🚀 Background email dispatch
+    dispatchBackgroundEmails(newNotifs);
 
     return res.json(buildDocumentResponse(document, req.user.id));
   } catch (error) {
@@ -353,6 +398,8 @@ const forwardDocument = async (req, res) => {
 
     const nextIndex = document.currentHolderIndex + 1;
     const hasNext = nextIndex < document.route.length;
+
+    const newNotifs = [];
 
     if (hasNext) {
       let selectedNextIndex = nextIndex;
@@ -400,7 +447,7 @@ const forwardDocument = async (req, res) => {
         timestamp: now,
       });
 
-      await Notification.insertMany([
+      newNotifs.push(
         {
           userId: nextStep.userId,
           documentId: document._id,
@@ -414,8 +461,8 @@ const forwardDocument = async (req, res) => {
           trackingId: document.trackingId,
           type: "forwarded",
           message: `${req.user.name} forwarded document ${document.trackingId} to ${nextStep.name}.`,
-        },
-      ]);
+        }
+      );
     } else {
       document.currentHolderIndex = -1;
       document.currentHolder = null;
@@ -432,18 +479,22 @@ const forwardDocument = async (req, res) => {
       const recipients = document.route.map((step) => step.userId);
       const userIds = [...new Set([String(document.sender.userId), ...recipients.map(String)])];
 
-      await Notification.insertMany(
-        userIds.map((userId) => ({
-          userId,
+      userIds.forEach((uId) => {
+        newNotifs.push({
+          userId: uId,
           documentId: document._id,
           trackingId: document.trackingId,
           type: "completed",
           message: `Workflow completed for document ${document.trackingId}.`,
-        }))
-      );
+        });
+      });
     }
 
+    await Notification.insertMany(newNotifs);
     await document.save();
+
+    // 🚀 Background email dispatch
+    dispatchBackgroundEmails(newNotifs);
 
     return res.json(buildDocumentResponse(document, req.user.id));
   } catch (error) {
@@ -536,7 +587,7 @@ const rerouteDocument = async (req, res) => {
 
     await document.save();
 
-    await Notification.insertMany([
+    const newNotifs = [
       {
         userId: userToInsert._id,
         documentId: document._id,
@@ -551,7 +602,12 @@ const rerouteDocument = async (req, res) => {
         type: "reroute",
         message: `${req.user.name} changed the route of document ${document.trackingId} and added ${userToInsert.name}.`,
       },
-    ]);
+    ];
+
+    await Notification.insertMany(newNotifs);
+
+    // 🚀 Background email dispatch
+    dispatchBackgroundEmails(newNotifs);
 
     return res.json(buildDocumentResponse(document, req.user.id));
   } catch (error) {
