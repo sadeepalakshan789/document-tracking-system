@@ -241,7 +241,7 @@ export default function CreateDocument() {
                   <div className="flex flex-wrap justify-between items-center gap-2">
                     <label className="font-bold text-sm theme-text-main">Select Recipients</label>
                     <span className="text-xs theme-text-muted">
-                      {filteredRecipientOptions.length} available
+                      {recipientOptions.length} available
                     </span>
                   </div>
 

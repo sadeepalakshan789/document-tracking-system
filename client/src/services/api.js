@@ -21,13 +21,12 @@ export const getCampusPositions = () => API.get("/auth/positions");
 export const getCurrentUser = () => API.get("/auth/me");
 export const updateCurrentUser = (data) => API.put("/auth/me", data);
 export const getUsers = () => API.get("/auth/users");
-export const getAdminUsers = () => API.get("/auth/admin/users");
-export const getAdminUserById = (id) => API.get(`/auth/admin/users/${id}`);
-export const getAdminUserActivity = (id, limit = 200) =>
-  API.get(`/auth/admin/users/${id}/activity`, { params: { limit } });
-export const createAdminUser = (data) => API.post("/auth/admin/users", data);
-export const updateAdminUser = (id, data) => API.put(`/auth/admin/users/${id}`, data);
-export const deleteAdminUser = (id) => API.delete(`/auth/admin/users/${id}`);
+export const getAdminUsers = () => API.get("/admin/users");
+export const getAdminUserById = (id) => API.get(`/admin/users/${id}`);
+export const getAdminUserActivity = (id) => API.get(`/admin/users/${id}/activity`);
+export const createAdminUser = (data) => API.post("/admin/create-user", data);
+export const updateAdminUser = (id, data) => API.put(`/admin/users/${id}`, data);
+export const deleteAdminUser = (id) => API.delete(`/admin/user/${id}`);
 
 export const createDocument = (data) => API.post("/documents/create", data);
 export const getDocument = (id) => API.get(`/documents/${id}`);

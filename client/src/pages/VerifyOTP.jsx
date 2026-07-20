@@ -29,17 +29,22 @@ export default function VerifyOTP() {
     try {
       const res = await verifyOTP({ email, otp });
       localStorage.setItem("token", res.data.token);
-      localStorage.setItem(
-        "currentUser",
-        JSON.stringify({
-          _id: res.data._id,
-          name: res.data.name,
-          email: res.data.email,
-          position: res.data.position,
-          role: res.data.role,
-        })
-      );
-      navigate("/dashboard");
+      const userObj = {
+        _id: res.data._id,
+        name: res.data.name,
+        email: res.data.email,
+        position: res.data.position,
+        role: res.data.role,
+      };
+      localStorage.setItem("currentUser", JSON.stringify(userObj));
+      localStorage.setItem("user", JSON.stringify(userObj));
+
+      const userRole = res.data.role ? String(res.data.role).toUpperCase() : "";
+      if (userRole === "SUPER_ADMIN" || userRole === "SUPER-ADMIN" || userRole === "ADMIN") {
+        navigate("/super-admin-dashboard", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
     } catch (err) {
       setError(err.response?.data?.message || "OTP verification failed");
     } finally {

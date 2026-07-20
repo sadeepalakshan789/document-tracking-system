@@ -31,24 +31,24 @@ export default function Login() {
 
       // 2. Full user object  (read by Dashboard and other pages for role checks
       //    without an extra API round-trip)
-      localStorage.setItem(
-        "user",
-        JSON.stringify({
-          _id: userData._id,
-          name: userData.name,
-          email: userData.email,
-          position: userData.position || "",
-          role: userData.role,
-          status: userData.status || "active",
-        })
-      );
+      const userObj = {
+        _id: userData._id,
+        name: userData.name,
+        email: userData.email,
+        position: userData.position || "",
+        role: userData.role,
+        status: userData.status || "active",
+      };
+
+      localStorage.setItem("user", JSON.stringify(userObj));
+      localStorage.setItem("currentUser", JSON.stringify(userObj));
 
       // Dispatch event for instant account-specific theme sync
       window.dispatchEvent(new Event("authChange"));
 
       // ── Role-based redirect ─────────────────────────────────────────────
-      const userRole = userData.role ? userData.role.toUpperCase() : "";
-      if (userRole === "SUPER_ADMIN" || userRole === "SUPER-ADMIN") {
+      const userRole = userData.role ? String(userData.role).toUpperCase() : "";
+      if (userRole === "SUPER_ADMIN" || userRole === "SUPER-ADMIN" || userRole === "ADMIN") {
         navigate("/super-admin-dashboard", { replace: true });
       } else {
         navigate("/dashboard", { replace: true });

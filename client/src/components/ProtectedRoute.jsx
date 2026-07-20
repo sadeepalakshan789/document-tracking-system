@@ -31,8 +31,8 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 
   // ── Case 2: Authenticated but wrong role ──────────────────────
   if (allowedRoles.length > 0) {
-    const userRole = payload.role ? payload.role.toUpperCase() : "";
-    const allowedRolesUpper = allowedRoles.map(r => r.toUpperCase());
+    const userRole = payload.role ? payload.role.toUpperCase().replace(/-/g, "_") : "";
+    const allowedRolesUpper = allowedRoles.map(r => r.toUpperCase().replace(/-/g, "_"));
     if (!allowedRolesUpper.includes(userRole)) {
       return <Navigate to="/unauthorized" replace />;
     }

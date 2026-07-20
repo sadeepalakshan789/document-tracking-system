@@ -92,13 +92,13 @@ const authorizeRoles = (...allowedRoles) => {
         message: "Access denied. You are not authorized to perform this action!",
       });
     }
+    const normRole = (req.user.role || "").toLowerCase().replace(/_/g, "-");
     // Fallback check: automatically grant access to any admin route for SUPER_ADMIN
-    if (req.user.role === "SUPER_ADMIN" || req.user.role === "super-admin") {
+    if (normRole === "super-admin") {
       return next();
     }
-    const userRole = req.user.role ? req.user.role.toLowerCase() : "";
-    const allowedRolesLower = allowedRoles.map((role) => role.toLowerCase());
-    if (!allowedRolesLower.includes(userRole)) {
+    const allowedRolesNormalized = allowedRoles.map((role) => role.toLowerCase().replace(/_/g, "-"));
+    if (!allowedRolesNormalized.includes(normRole)) {
       return res.status(403).json({
         message: "Access denied. You are not authorized to perform this action!",
       });
@@ -108,7 +108,8 @@ const authorizeRoles = (...allowedRoles) => {
 };
 
 const requireSuperAdmin = (req, res, next) => {
-  if (!req.user || (req.user.role !== "super-admin" && req.user.role !== "SUPER_ADMIN")) {
+  const normRole = (req.user?.role || "").toLowerCase().replace(/_/g, "-");
+  if (!req.user || normRole !== "super-admin") {
     return res.status(403).json({
       message: "Access denied. Only SUPER_ADMIN can perform this action.",
     });

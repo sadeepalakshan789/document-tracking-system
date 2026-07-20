@@ -43,7 +43,7 @@ function Alert({ type, message, onClose }) {
 
 /** Pill badge for role */
 function RoleBadge({ role }) {
-  const normalizedRole = role ? role.toUpperCase() : "NORMAL_USER";
+  const normalizedRole = role ? role.toUpperCase().replace(/-/g, "_") : "NORMAL_USER";
   
   const map = {
     "SUPER_ADMIN": "bg-purple-500/20 text-purple-300 border-purple-500/40",
@@ -306,14 +306,14 @@ export default function SuperAdminDashboard() {
       u.email.toLowerCase().includes(search.toLowerCase());
     
     // Capitalization agnostic filter
-    const matchesRole = roleFilter === "all" || (u.role && u.role.toUpperCase() === roleFilter.toUpperCase());
+    const matchesRole = roleFilter === "all" || (u.role && u.role.toUpperCase().replace(/-/g, "_") === roleFilter.toUpperCase());
     return matchesSearch && matchesRole;
   });
 
   const stats = {
     total: users.length,
-    admins: users.filter((u) => u.role && (u.role.toUpperCase() === "ADMIN" || u.role.toUpperCase() === "SUB_ADMIN")).length,
-    regularUsers: users.filter((u) => u.role && (u.role.toUpperCase() === "USER" || u.role.toUpperCase() === "NORMAL_USER")).length,
+    admins: users.filter((u) => u.role && ["ADMIN", "SUB_ADMIN", "SUPER_ADMIN"].includes(u.role.toUpperCase().replace(/-/g, "_"))).length,
+    regularUsers: users.filter((u) => u.role && ["USER", "NORMAL_USER"].includes(u.role.toUpperCase().replace(/-/g, "_"))).length,
     blocked: users.filter((u) => u.status === "blocked").length,
   };
 
@@ -504,7 +504,7 @@ export default function SuperAdminDashboard() {
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700/40 text-slate-700 dark:text-slate-300">
                   {filteredUsers.map((user) => {
                     const isSelf = user._id === currentUserId;
-                    const isSuperAdminRow = user.role && user.role.toUpperCase() === "SUPER_ADMIN";
+                    const isSuperAdminRow = user.role && user.role.toUpperCase().replace(/-/g, "_") === "SUPER_ADMIN";
                     const actionsDisabled = isSelf || isSuperAdminRow;
                     const isActionLoading = actionLoadingId === user._id;
 

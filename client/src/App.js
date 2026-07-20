@@ -16,6 +16,7 @@ import UserControl from './pages/UserControl';
 import UserProfile from './pages/UserProfile';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import UserControlDetail from './pages/UserControlDetail';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
@@ -33,7 +34,8 @@ const AdminRoute = ({ children }) => {
   try {
     const currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
     const normalizedRole = String(currentUser?.role || '').trim().toLowerCase();
-    return normalizedRole === 'admin' ? children : <Navigate to="/dashboard" />;
+    const isAllowed = normalizedRole === 'admin' || normalizedRole === 'super-admin' || normalizedRole === 'super_admin';
+    return isAllowed ? children : <Navigate to="/dashboard" />;
   } catch {
     return <Navigate to="/dashboard" />;
   }
@@ -133,6 +135,14 @@ function App() {
           element={
             <AdminRoute>
               <UserProfile />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/users/:userId"
+          element={
+            <AdminRoute>
+              <UserControlDetail />
             </AdminRoute>
           }
         />

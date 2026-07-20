@@ -88,6 +88,10 @@ export default function Dashboard() {
   const [lastSyncedAt, setLastSyncedAt] = useState(new Date());
   const [activeCardFilter, setActiveCardFilter] = useState("all");
   const [documentSearch, setDocumentSearch] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState({});
+  const [uploadingDocumentId, setUploadingDocumentId] = useState("");
+  const [actionDocumentId, setActionDocumentId] = useState("");
+  const [versionHistoryByDoc, setVersionHistoryByDoc] = useState({});
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.isRead).length,
