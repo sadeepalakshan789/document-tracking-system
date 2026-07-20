@@ -28,24 +28,8 @@ const NAME_EMAIL_REGEX = /^.+\s<[^<>\s@]+@[^\s@]+\.[^\s@]+>$/;
 const PRIORITY_POSITIONS = [SUPER_ADMIN_POSITION, "Admin"];
 
 const getFromAddress = () => {
-  const rawFrom = (process.env.BREVO_FROM || process.env.BREVO_SENDER || "").trim().replace(/^"|"$/g, "");
-
-  if (SIMPLE_EMAIL_REGEX.test(rawFrom) || NAME_EMAIL_REGEX.test(rawFrom)) {
-    return rawFrom;
-  }
-
-  console.warn(
-    "Invalid BREVO_FROM format. Falling back to Document Tracking System <noreply@example.com>"
-  );
-  return "Document Tracking System <noreply@example.com>";
-};
-
-const parseSenderAddress = (fromAddress) => {
-  const match = fromAddress.match(/^(.*)\s*<([^<>]+)>$/);
-  if (match) {
-    return { name: match[1].trim(), email: match[2].trim() };
-  }
-  return { name: "Document Tracking System", email: fromAddress };
+  const senderEmail = process.env.SENDER_EMAIL || "noreply@documenttracking.com";
+  return { name: "Document Tracking System", email: senderEmail };
 };
 
 const getBrevoClient = () => {
@@ -56,14 +40,13 @@ const getBrevoClient = () => {
 
 const sendOTP = async (email, otp) => {
   const brevoApiKey = process.env.BREVO_API_KEY;
-  const fromAddress = getFromAddress();
+  const sender = getFromAddress();
 
   if (!brevoApiKey) {
     console.error("BREVO_API_KEY is missing in environment variables.");
     return { sent: false, error: "Brevo API key not configured" };
   }
 
-  const sender = parseSenderAddress(fromAddress);
   const sendSmtpEmail = {
     sender,
     to: [{ email }],
@@ -88,11 +71,11 @@ const sendOTP = async (email, otp) => {
     const apiInstance = getBrevoClient();
     const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
 
-    console.log(`OTP email sent via Brevo to ${email} from ${fromAddress}`);
+    console.log(`OTP email sent via Brevo to ${email} from ${sender.email}`);
     return { sent: true, messageId: result.messageId || null };
   } catch (err) {
-    const errMsg = err?.body?.message || err?.message || JSON.stringify(err);
-    console.error(`Error sending OTP email via Brevo to ${email}:`, errMsg);
+    const errMsg = err?.response?.body || err?.message || JSON.stringify(err);
+    console.error("Brevo Email Error Details:", errMsg);
     return { sent: false, error: errMsg };
   }
 };

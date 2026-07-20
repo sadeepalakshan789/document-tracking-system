@@ -1,14 +1,14 @@
 {
   "files": {
-    "main.css": "/static/css/main.4ad582f8.css",
-    "main.js": "/static/js/main.9a0cdb77.js",
+    "main.css": "/static/css/main.4215b5db.css",
+    "main.js": "/static/js/main.13397dde.js",
     "static/media/login-register-wallpaper-4k.jpg": "/static/media/login-register-wallpaper-4k.ab591922fc5a285f54d7.jpg",
     "index.html": "/index.html",
-    "main.4ad582f8.css.map": "/static/css/main.4ad582f8.css.map",
-    "main.9a0cdb77.js.map": "/static/js/main.9a0cdb77.js.map"
+    "main.4215b5db.css.map": "/static/css/main.4215b5db.css.map",
+    "main.13397dde.js.map": "/static/js/main.13397dde.js.map"
   },
   "entrypoints": [
-    "static/css/main.4ad582f8.css",
-    "static/js/main.9a0cdb77.js"
+    "static/css/main.4215b5db.css",
+    "static/js/main.13397dde.js"
   ]
 }

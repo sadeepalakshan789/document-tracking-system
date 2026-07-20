@@ -98,31 +98,31 @@ router.get(
 router.get(
   "/users/:userId/activity",
   protect,
-  requireSuperAdmin,
+  authorizeRoles("super-admin", "admin", "SUPER_ADMIN"),
   getUserDocumentActivity
 );
 
 /**
  * GET /api/admin/users/:userId
  * Fetch a single user's full profile.
- * Access: super-admin only
+ * Access: super-admin and admin
  */
 router.get(
   "/users/:userId",
   protect,
-  requireSuperAdmin,
+  authorizeRoles("super-admin", "admin", "SUPER_ADMIN"),
   getUserById
 );
 
 /**
  * PUT /api/admin/users/:userId
  * Update a user's role, position, and/or status.
- * Access: super-admin only
+ * Access: super-admin and admin
  */
 router.put(
   "/users/:userId",
   protect,
-  requireSuperAdmin,
+  authorizeRoles("super-admin", "admin", "SUPER_ADMIN"),
   updateUser
 );
 

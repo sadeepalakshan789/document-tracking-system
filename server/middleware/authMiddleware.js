@@ -93,8 +93,8 @@ const authorizeRoles = (...allowedRoles) => {
       });
     }
     const normRole = (req.user.role || "").toLowerCase().replace(/_/g, "-");
-    // Fallback check: automatically grant access to any admin route for SUPER_ADMIN
-    if (normRole === "super-admin") {
+    // Fallback check: grant access to super-admin or admin
+    if (normRole === "super-admin" || normRole === "admin") {
       return next();
     }
     const allowedRolesNormalized = allowedRoles.map((role) => role.toLowerCase().replace(/_/g, "-"));
@@ -109,7 +109,7 @@ const authorizeRoles = (...allowedRoles) => {
 
 const requireSuperAdmin = (req, res, next) => {
   const normRole = (req.user?.role || "").toLowerCase().replace(/_/g, "-");
-  if (!req.user || normRole !== "super-admin") {
+  if (!req.user || (normRole !== "super-admin" && normRole !== "admin")) {
     return res.status(403).json({
       message: "Access denied. Only SUPER_ADMIN can perform this action.",
     });

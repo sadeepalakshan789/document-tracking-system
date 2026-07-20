@@ -18,35 +18,37 @@ const {
 
 const isSameId = (a, b) => String(a) === String(b);
 
-// 📧 Asynchronous background email dispatcher (prevents blocking the main response)
+// Asynchronous background email dispatcher (Optimized & Fixed)
 const dispatchBackgroundEmails = async (notifications) => {
   try {
     for (const notif of notifications) {
       if (!notif.userId) continue;
 
-      let senderId = null;
-      if (notif.documentId) {
-        const doc = await Document.findById(notif.documentId).select("sender");
-        if (doc && doc.sender?.userId) {
-          senderId = doc.sender.userId;
-        }
-      }
-
-      // 💡 1. Completely prevent sending emails to the document creator/sender
-      if (senderId && isSameId(notif.userId, senderId)) {
+      // 1. Fetch the target recipient details directly
+      const user = await User.findById(notif.userId).select("name email");
+      if (!user || !user.email) {
+        console.log(`[Email Queue] Skipped: User not found or has no email for ID ${notif.userId}`);
         continue;
       }
 
-      // 💡 2. Send emails to all remaining added recipients
-      const user = await User.findById(notif.userId).select("name email");
-      if (user && user.email) {
-        sendNotificationEmail(
-          user.email,
-          user.name,
-          `Document Update: ${notif.trackingId}`,
-          notif.message
-        ).catch((err) => console.error("Brevo Background Dispatch Error:", err.message));
+      // 2. Prevent sending notification emails to the action actor/creator themselves if it's a system notification
+      if (notif.type === "system") {
+        console.log(`[Email Queue] Skipped: Creator system notification email for ${user.email}`);
+        continue;
       }
+
+      // 💡 Log the attempt in terminal to confirm it reaches this block
+      console.log(`[Email Queue] Triggering Brevo email transmission to: ${user.email}`);
+
+      // 3. Dispatch using the Brevo utility
+      sendNotificationEmail(
+        user.email,
+        user.name,
+        `Document Update: ${notif.trackingId}`,
+        notif.message
+      ).catch((err) => {
+        console.error("Brevo Email Dispatcher Link Failed:", err.response ? JSON.stringify(err.response.body) : err.message);
+      });
     }
   } catch (error) {
     console.error("Email dispatch queue error:", error.message);
@@ -217,8 +219,6 @@ const createDocument = async (req, res) => {
   }
 };
 
-
-
 const getDocument = async (req, res) => {
   try {
     const document = await Document.findOne({ trackingId: req.params.id });
@@ -312,7 +312,7 @@ const acceptDocument = async (req, res) => {
     ];
 
     await Notification.insertMany(newNotifs);
-    
+
     // 🚀 Background email dispatch
     dispatchBackgroundEmails(newNotifs);
 

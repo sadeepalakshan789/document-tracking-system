@@ -134,7 +134,7 @@ function App() {
           path="/user-control/:userId"
           element={
             <AdminRoute>
-              <UserProfile />
+              <UserControlDetail />
             </AdminRoute>
           }
         />

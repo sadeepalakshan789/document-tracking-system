@@ -260,7 +260,8 @@ const getStatusToneClass = (tone) => {
 const ACTIVITY_TABS = ["Sent Documents", "Workflow Steps", "Action Log"];
 
 export default function UserControlDetail() {
-  const { id } = useParams();
+  const params = useParams();
+  const id = params.id || params.userId;
   const navigate = useNavigate();
   const currentUserId = getUserId();
 
@@ -310,6 +311,9 @@ export default function UserControlDetail() {
     setLoadingUser(true);
     setUserError("");
     try {
+      if (!id || id === "undefined") {
+        throw new Error("No valid user ID provided.");
+      }
       const res = await adminGetUserById(id);
       const u = res.data.user;
       if (!u) throw new Error("Response missing user object");
