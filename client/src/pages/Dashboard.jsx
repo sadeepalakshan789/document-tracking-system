@@ -904,195 +904,167 @@ export default function Dashboard() {
               </section>
 
             <section ref={documentsSectionRef} className="bg-white p-6 rounded shadow-sm border border-gray-100">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-4">
-                <div className="space-y-2 md:space-y-0 md:flex md:items-center md:gap-4">
-                  <h2 className="text-xl font-bold text-gray-800">{filteredDocumentsTitle}</h2>
-                  <div className="relative w-full md:w-[320px]">
-                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
-                      <svg
-                        viewBox="0 0 24 24"
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <circle cx="11" cy="11" r="8" />
-                        <path d="m21 21-4.3-4.3" />
-                      </svg>
-                    </span>
-                    <input
-                      type="search"
-                      value={documentSearch}
-                      onChange={(e) => setDocumentSearch(e.target.value)}
-                      placeholder="Search documents by title, tracking ID, sender, holder, or status"
-                      className="w-full border border-gray-300 rounded-full py-2.5 pl-10 pr-4 text-sm text-gray-700 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                </div>
+  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6 border-b border-gray-100 pb-4">
+    <div>
+      <h2 className="text-xl font-bold text-gray-800">{filteredDocumentsTitle}</h2>
+      <p className="text-xs text-gray-500 mt-1">Showing all records matching your selected filter view.</p>
+    </div>
 
-                <div className="flex gap-2">
-                  {activeCardFilter !== "all" && (
-                    <button
-                      onClick={() => setActiveCardFilter("all")}
-                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm font-semibold"
-                    >
-                      Show All
-                    </button>
-                  )}
-                  <button
-                    onClick={() => fetchDashboardData(false)}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm font-semibold"
-                  >
-                    Refresh
-                  </button>
-                </div>
-              </div>
+    <div className="flex gap-2">
+      {activeCardFilter !== "all" && (
+        <button
+          onClick={() => setActiveCardFilter("all")}
+          className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-xl text-sm font-semibold transition"
+        >
+          Show All
+        </button>
+      )}
+      <button
+        onClick={() => fetchDashboardData(false)}
+        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold transition"
+      >
+        Refresh
+      </button>
+    </div>
+  </div>
 
-              {displayedDocuments.length === 0 ? (
-                <p className="text-gray-500">
-                  {documentSearch && "No documents match your search."}
-                  {!documentSearch && activeCardFilter === "all" && "No documents are currently assigned to you."}
-                  {!documentSearch && activeCardFilter === "action" && "No documents are currently awaiting your acceptance."}
-                  {!documentSearch && activeCardFilter === "notification" &&
-                    "No documents are linked to unread notifications."}
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {displayedDocuments.map((doc) => (
-                    <div key={doc._id} className="border border-gray-200 rounded p-4 bg-gray-50">
-                      <div className="flex flex-wrap justify-between gap-3 items-start">
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-800">{doc.title}</h3>
-                          <p className="text-sm text-gray-600">Tracking ID: {doc.trackingId}</p>
-                          <p className="text-sm text-gray-600">Status: {doc.status}</p>
-                          <p className="text-sm text-gray-600">
-                            Receipt Status:{" "}
-                            <span
-                              className={`font-semibold ${getReceiptStatus(doc) === "Accepted"
-                                ? "text-emerald-700"
-                                : "text-yellow-700"
-                                }`}
-                            >
-                              {getReceiptStatus(doc)}
-                            </span>
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Current Holder: {doc.currentHolder?.name || "Completed"}
-                          </p>
-                        </div>
-                        <div className="flex gap-2">
-                          {(doc.workflow?.canAccept || doc.workflow?.canForward) && (
-                            <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">
-                              Action Required
-                            </span>
-                          )}
-                          <button
-                            onClick={() => navigate(`/track-document/${doc.trackingId}`)}
-                            className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition"
-                          >
-                            Open Workflow
-                          </button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-700 mt-2">Route: {routeSummary(doc)}</p>
-                      <p className="text-xs text-gray-500 mt-1">Updated: {formatDateTime(doc.updatedAt)}</p>
-
-                      <div className="mt-4 rounded border border-blue-100 bg-blue-50 p-3">
-                        <div className="flex flex-wrap gap-2">
-                          {!doc.file ? (
-                            <form onSubmit={(event) => handleUploadFile(doc, event)} className="flex flex-wrap gap-2">
-                              <input
-                                type="file"
-                                onChange={(event) =>
-                                  setSelectedFiles((prev) => ({ ...prev, [doc.trackingId]: event.target.files?.[0] || null }))
-                                }
-                                className="border border-gray-300 p-2 rounded text-sm"
-                              />
-                              <button
-                                type="submit"
-                                disabled={uploadingDocumentId === doc.trackingId}
-                                className="bg-blue-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-blue-700 disabled:bg-gray-400"
-                              >
-                                {uploadingDocumentId === doc.trackingId ? "Uploading..." : "Upload File"}
-                              </button>
-                            </form>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handlePreviewFile(doc)}
-                                disabled={actionDocumentId === doc.trackingId}
-                                className="bg-indigo-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
-                              >
-                                Preview File
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadFile(doc)}
-                                disabled={actionDocumentId === doc.trackingId}
-                                className="bg-emerald-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-emerald-700 disabled:bg-gray-400"
-                              >
-                                Download File
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleShowVersions(doc)}
-                                disabled={actionDocumentId === doc.trackingId}
-                                className="bg-amber-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-amber-700 disabled:bg-gray-400"
-                              >
-                                Version History
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteDocument(doc)}
-                                disabled={actionDocumentId === doc.trackingId}
-                                className="bg-red-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-red-700 disabled:bg-gray-400"
-                              >
-                                Delete Document
-                              </button>
-                            </>
-                          )}
-                        </div>
-
-                        {doc.file && (
-                          <div className="mt-3 text-sm text-gray-700">
-                            <p className="font-semibold">Attached file: {doc.file.originalFileName}</p>
-                            <p className="text-xs text-gray-500">
-                              {doc.file.fileExtension?.toUpperCase()} • {Math.round(doc.file.fileSize / 1024)} KB • Version {doc.file.currentVersion || 1}
-                            </p>
-                          </div>
-                        )}
-
-                        {versionHistoryByDoc[doc.trackingId]?.length > 0 && (
-                          <div className="mt-3 rounded border border-gray-200 bg-white p-3">
-                            <h4 className="font-semibold text-gray-800 mb-2">Version History</h4>
-                            <ul className="space-y-2 text-sm text-gray-700">
-                              {versionHistoryByDoc[doc.trackingId].map((version) => (
-                                <li key={`${version.versionNumber}-${version.storedFileName}`} className="border-b border-gray-100 pb-2 flex items-center justify-between gap-2">
-                                  <div>
-                                    <p>Version {version.versionNumber}: {version.originalFileName}</p>
-                                    <p className="text-xs text-gray-500">{formatDateTime(version.uploadedAt)}</p>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDownloadVersion(doc, version)}
-                                    className="bg-slate-700 text-white px-2 py-1 rounded text-xs font-semibold"
-                                  >
-                                    Download
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+  {displayedDocuments.length === 0 ? (
+    <p className="text-gray-500 py-4 text-center border border-dashed border-gray-200 rounded-xl text-sm">
+      {documentSearch && "No documents match your search query."}
+      {!documentSearch && activeCardFilter === "all" && "No documents are currently assigned to you."}
+      {!documentSearch && activeCardFilter === "action" && "No documents are currently awaiting your acceptance."}
+      {!documentSearch && activeCardFilter === "notification" && "No documents are linked to unread notifications."}
+    </p>
+  ) : (
+    <div className="space-y-3">
+      {displayedDocuments.map((doc) => (
+        <div key={doc._id} className="border border-gray-200 rounded p-4 bg-gray-50">
+          <div className="flex flex-wrap justify-between gap-3 items-start">
+            <div>
+              <h3 className="text-lg font-bold text-gray-800">{doc.title}</h3>
+              <p className="text-sm text-gray-600">Tracking ID: {doc.trackingId}</p>
+              <p className="text-sm text-gray-600">Status: {doc.status}</p>
+              <p className="text-sm text-gray-600">
+                Receipt Status:{" "}
+                <span className={`font-semibold ${getReceiptStatus(doc) === "Accepted" ? "text-emerald-700" : "text-yellow-700"}`}>
+                  {getReceiptStatus(doc)}
+                </span>
+              </p>
+              <p className="text-sm text-gray-600">
+                Current Holder: {doc.currentHolder?.name || "Completed"}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {(doc.workflow?.canAccept || doc.workflow?.canForward) && (
+                <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">
+                  Action Required
+                </span>
               )}
-            </section>
+              <button
+                onClick={() => navigate(`/track-document/${doc.trackingId}`)}
+                className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition"
+              >
+                Open Workflow
+              </button>
+            </div>
+          </div>
+          <p className="text-sm text-gray-700 mt-2">Route: {routeSummary(doc)}</p>
+          <p className="text-xs text-gray-500 mt-1">Updated: {formatDateTime(doc.updatedAt)}</p>
+
+          <div className="mt-4 rounded border border-blue-100 bg-blue-50 p-3">
+            <div className="flex flex-wrap gap-2">
+              {!doc.file ? (
+                <form onSubmit={(event) => handleUploadFile(doc, event)} className="flex flex-wrap gap-2">
+                  <input
+                    type="file"
+                    onChange={(event) =>
+                      setSelectedFiles((prev) => ({ ...prev, [doc.trackingId]: event.target.files?.[0] || null }))
+                    }
+                    className="border border-gray-300 p-2 rounded text-sm bg-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={uploadingDocumentId === doc.trackingId}
+                    className="bg-blue-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+                  >
+                    {uploadingDocumentId === doc.trackingId ? "Uploading..." : "Upload File"}
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handlePreviewFile(doc)}
+                    disabled={actionDocumentId === doc.trackingId}
+                    className="bg-indigo-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
+                  >
+                    Preview File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadFile(doc)}
+                    disabled={actionDocumentId === doc.trackingId}
+                    className="bg-emerald-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-emerald-700 disabled:bg-gray-400"
+                  >
+                    Download File
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleShowVersions(doc)}
+                    disabled={actionDocumentId === doc.trackingId}
+                    className="bg-amber-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-amber-700 disabled:bg-gray-400"
+                  >
+                    Version History
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteDocument(doc)}
+                    disabled={actionDocumentId === doc.trackingId}
+                    className="bg-red-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-red-700 disabled:bg-gray-400"
+                  >
+                    Delete Document
+                  </button>
+                </>
+              )}
+            </div>
+
+            {doc.file && (
+              <div className="mt-3 text-sm text-gray-700">
+                <p className="font-semibold">Attached file: {doc.file.originalFileName}</p>
+                <p className="text-xs text-gray-500">
+                  {doc.file.fileExtension?.toUpperCase()} • {Math.round(doc.file.fileSize / 1024)} KB • Version {doc.file.currentVersion || 1}
+                </p>
+              </div>
+            )}
+
+            {versionHistoryByDoc[doc.trackingId]?.length > 0 && (
+              <div className="mt-3 rounded border border-gray-200 bg-white p-3">
+                <h4 className="font-semibold text-gray-800 mb-2">Version History</h4>
+                <ul className="space-y-2 text-sm text-gray-700">
+                  {versionHistoryByDoc[doc.trackingId].map((version) => (
+                    <li key={`${version.versionNumber}-${version.storedFileName}`} className="border-b border-gray-100 pb-2 flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-medium">Version {version.versionNumber}: {version.originalFileName}</p>
+                        <p className="text-xs text-gray-500">{formatDateTime(version.uploadedAt)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadVersion(doc, version)}
+                        className="bg-slate-700 text-white px-2 py-1 rounded text-xs font-semibold"
+                      >
+                        Download
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</section>
 
           </div>
         </div>
