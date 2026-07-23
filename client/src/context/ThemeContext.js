@@ -44,13 +44,7 @@ function getSavedThemeForAccount() {
 function applyThemeToDOM(theme) {
   const root = document.documentElement;
   root.setAttribute('data-theme', theme);
-  if (theme === 'light') {
-    root.classList.add('light-mode');
-    root.classList.remove('dark');
-  } else {
-    root.classList.add('dark');
-    root.classList.remove('light-mode');
-  }
+  root.classList.toggle('dark', theme === 'dark');
 }
 
 export function ThemeProvider({ children }) {
@@ -92,6 +86,7 @@ export function ThemeProvider({ children }) {
     const normalized = newTheme === 'light' ? 'light' : 'dark';
     const key = getAccountThemeKey();
     localStorage.setItem(key, normalized);
+    localStorage.setItem('user-theme', normalized);
     setCurrentTheme(normalized);
     applyThemeToDOM(normalized);
   };

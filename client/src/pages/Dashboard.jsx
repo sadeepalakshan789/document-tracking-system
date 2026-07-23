@@ -98,8 +98,11 @@ export default function Dashboard() {
     [notifications]
   );
 
+  // Documents where the logged-in user is the active current holder AND needs to accept.
+  // The backend already enforces this via getMyDocuments, but we add a client-side
+  // guard (canAccept) as a defensive double-check against any stale state.
   const needsMyAction = useMemo(
-    () => documents.filter((doc) => doc.workflow?.canAccept),
+    () => documents.filter((doc) => doc.workflow?.canAccept === true),
     [documents]
   );
 
@@ -114,12 +117,16 @@ export default function Dashboard() {
   }, [documents, notifications]);
 
   const filteredDocuments = useMemo(() => {
+    // "action" sub-filter: already-strict needsMyAction list
+    // "notification" sub-filter: docs with unread notifications
+    // "all" (default): the full documents array which the backend has already scoped
+    //   to only docs where the user is the active holder with a pending step
     const baseDocuments =
       activeCardFilter === "action"
         ? needsMyAction
         : activeCardFilter === "notification"
         ? unreadRelatedDocuments
-        : documents;
+        : documents; // backend already enforces: currentHolder === me AND !acceptedAt
 
     return baseDocuments;
   }, [activeCardFilter, documents, needsMyAction, unreadRelatedDocuments]);
@@ -162,9 +169,9 @@ export default function Dashboard() {
   const filteredDocumentsTitle = useMemo(() => {
     const query = documentSearch.trim();
     if (query) return `Search results for "${query}"`;
-    if (activeCardFilter === "action") return "Documents Awaiting My Acceptance";
+    if (activeCardFilter === "action") return "Pending Acceptance — Action Required";
     if (activeCardFilter === "notification") return "Documents Related To Unread Notifications";
-    return "Documents Assigned To Me";
+    return "Documents Assigned To Me — Pending Acceptance";
   }, [activeCardFilter, documentSearch]);
 
   const canViewUserControl = useMemo(() => {
@@ -499,50 +506,33 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen theme-bg-primary flex items-center justify-center theme-text-main text-lg font-semibold">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-900 dark:text-slate-100 text-lg font-semibold transition-colors duration-300">
         Loading dashboard...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-blue-700 text-white p-4 shadow-md">
-        <div className="max-w-6xl mx-auto flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <label className="relative w-[2cm] h-[2cm] rounded-full overflow-hidden bg-blue-900 flex items-center justify-center border border-white/20 cursor-pointer hover:ring-2 hover:ring-white/40 transition">
-              {profilePhoto ? (
-                <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-xl font-bold">
-                  {user?.name?.charAt(0)?.toUpperCase() || "U"}
-                </span>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handlePhotoUpload}
-                className="hidden"
-              />
-            </label>
-            <div className="min-w-0">
-              <p className="text-lg font-semibold leading-tight truncate">{user?.name || "User"}</p>
-              <p className="text-sm text-blue-100 leading-tight truncate">
-                {user?.position || "Position not set"}
-              </p>
-              <p className="text-sm text-blue-100/90 leading-tight mt-0.5">Click photo to update</p>
-            </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+      <header className="bg-gradient-to-r from-slate-900 via-indigo-955 to-slate-900 text-white py-3 px-6 md:px-8 shadow-lg w-full border-b border-indigo-500/30 sticky top-0 z-50">
+        <div className="w-full max-w-[1550px] mx-auto flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          {/* Far Left: Logo / Dashboard Title */}
+          <div className="flex items-center">
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white whitespace-nowrap">
+              Document Workflow Dashboard
+            </h1>
           </div>
 
-          <div className="order-first md:order-none md:flex-1 md:px-6 flex justify-center">
-            <div className="relative w-full max-w-[420px]">
-              <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">
+          {/* Center: Search input field */}
+          <div className="flex-1 flex justify-center px-4 md:px-12">
+            <div className="relative w-full max-w-[550px]">
+              <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-indigo-200">
                 <svg
                   viewBox="0 0 24 24"
                   className="w-5 h-5"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
@@ -554,86 +544,141 @@ export default function Dashboard() {
                 type="search"
                 value={documentSearch}
                 onChange={(e) => setDocumentSearch(e.target.value)}
-                placeholder="Search documents by title, tracking ID, sender, holder, status, route, or date"
-                className="w-full rounded-full border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition duration-150 ease-in-out focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                placeholder="Search documents by title, tracking ID, sender, holder, status..."
+                className="w-full rounded-full border border-indigo-500/30 bg-slate-800/80 py-2.5 pl-12 pr-4 text-sm text-white placeholder-slate-400 shadow-sm transition-all duration-300 focus:bg-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
           </div>
 
-          <div className="flex flex-col items-end md:items-end">
-            <h1 className="text-2xl font-bold">Document Workflow Dashboard</h1>
-            <p className="text-sm text-blue-100">Signed in as {user?.email || "-"}</p>
+          {/* Far Right: User Profile Section */}
+          <div className="flex items-center gap-4">
+            {/* Left Block: Avatar and Click Text */}
+            <div className="flex flex-col items-center gap-1">
+              <label className="relative w-12 h-12 rounded-full overflow-hidden bg-gradient-to-tr from-indigo-500 to-violet-500 text-white ring-2 ring-indigo-400/30 flex items-center justify-center cursor-pointer hover:scale-105 transition-all duration-200">
+                {profilePhoto ? (
+                  <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-lg font-bold text-white">
+                    {user?.name?.charAt(0)?.toUpperCase() || "S"}
+                  </span>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+              </label>
+              <span className="text-[10px] text-indigo-200/80 font-medium whitespace-nowrap">
+                Click photo to update
+              </span>
+            </div>
+
+            {/* Right Block: Stacked User Details */}
+            <div className="flex flex-col justify-center min-w-0">
+              <p className="text-sm md:text-base font-bold text-white leading-tight truncate">
+                {user?.name || "Sadeepa1"}
+              </p>
+              <p className="text-xs text-indigo-200 leading-tight mt-0.5 truncate">
+                {user?.position || "Management Assistant"}
+              </p>
+              <p className="text-[11px] text-indigo-200/60 leading-tight mt-1 truncate">
+                Signed in as {user?.email || "sadeepala099@gmail.com"}
+              </p>
+            </div>
           </div>
         </div>
-      </header>
-
-      <main className="max-w-[1550px] xl:ml-4 xl:mr-auto p-6 space-y-6">
-        {error && <p className="p-3 rounded text-sm font-medium" style={{backgroundColor: 'var(--error-bg)', color: 'var(--error-text)'}}>{error}</p>}
-        {success && <p className="p-3 rounded text-sm font-medium" style={{backgroundColor: 'var(--success-bg)', color: 'var(--success-text)'}}>{success}</p>}
+      </header>      <main className="max-w-[1550px] mx-auto p-6 space-y-6">
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-200 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2.5">
+            <svg className="w-5 h-5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
+        {success && (
+          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2.5">
+            <svg className="w-5 h-5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{success}</span>
+          </div>
+        )}
 
         {documentSearch.trim() !== "" ? (
-          <div className="theme-card rounded-3xl p-6 shadow-sm space-y-6">
-            <div className="flex justify-between items-center border-b border-gray-150 pb-4">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200/80 space-y-6">
+            <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-200 pb-4">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Search Results</h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <h2 className="text-xl font-bold text-slate-900">Search Results</h2>
+                <p className="text-xs text-slate-500 mt-1">
                   Found {searchResults.length} matching {searchResults.length === 1 ? "document" : "documents"} for "{documentSearch}"
                 </p>
               </div>
               <button
                 onClick={() => setDocumentSearch("")}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold transition"
+                className="border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition"
               >
                 Clear Search
               </button>
             </div>
 
             {searchResults.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div className="text-center py-12 text-slate-500">
+                <svg className="w-16 h-16 mx-auto text-slate-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <p className="text-lg font-medium">No matches found</p>
-                <p className="text-sm text-gray-400 mt-1">Try checking for typos or searching by a different term/tracking number.</p>
+                <p className="text-lg font-semibold">No matches found</p>
+                <p className="text-sm mt-1">Try checking for typos or searching by a different term/tracking number.</p>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {searchResults.map((doc) => {
                   const isDocWorkflowComplete = isWorkflowComplete(doc);
+                  const isCurrentHolderMe = doc.currentHolder?._id === user?._id;
+                  const docRequiresAction = (doc.workflow?.canAccept || doc.workflow?.canForward) && isCurrentHolderMe;
+
+                  let badgeClass = "bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800 font-semibold px-3 py-1 rounded-full";
+                  if (isDocWorkflowComplete) {
+                    badgeClass = "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 font-semibold px-3 py-1 rounded-full";
+                  } else if (docRequiresAction) {
+                    badgeClass = "bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 font-semibold px-3 py-1 rounded-full";
+                  }
+
                   return (
-                    <div key={doc._id} className="border border-gray-200 rounded-2xl p-5 bg-slate-50/35 hover:bg-slate-50 transition">
+                    <div key={doc._id} className="bg-slate-50/50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 rounded-xl p-5 transition-all duration-300 premium-card">
                       <div className="flex flex-wrap justify-between items-start gap-4">
                         <div>
                           <div className="flex items-center gap-3">
-                            <h3 className="text-lg font-bold text-gray-900">{doc.title}</h3>
-                            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${isDocWorkflowComplete ? "bg-emerald-100 text-emerald-700 border border-emerald-200" : "bg-blue-100 text-blue-700 border border-blue-200"}`}>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">{doc.title}</h3>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${badgeClass}`}>
                               {doc.status}
                             </span>
                           </div>
-                          <p className="text-sm font-mono text-gray-500 mt-1">Tracking ID: {doc.trackingId}</p>
+                          <p className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-1">Tracking ID: {doc.trackingId}</p>
                         </div>
                         <div className="flex gap-2">
                           <button
                             onClick={() => navigate(`/track-document/${doc.trackingId}`)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
+                            className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-all"
                           >
                             Open Workflow
                           </button>
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-xs text-gray-600 bg-white border border-gray-150 rounded-xl p-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-xs text-slate-600 dark:text-slate-355 bg-white dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 transition-all duration-300">
                         <div>
-                          <span className="font-semibold block text-gray-800">Sender</span>
-                          <span>{doc.sender?.name} ({doc.sender?.email})</span>
+                          <span className="font-semibold block text-slate-900 dark:text-slate-100">Sender</span>
+                          <span className="text-slate-700 dark:text-slate-300">{doc.sender?.name} ({doc.sender?.email})</span>
                         </div>
                         <div>
-                          <span className="font-semibold block text-gray-800">Current Holder</span>
-                          <span>{doc.currentHolder?.name || "Workflow Completed"}</span>
+                          <span className="font-semibold block text-slate-900 dark:text-slate-100">Current Holder</span>
+                          <span className="text-slate-700 dark:text-slate-300">{doc.currentHolder?.name || "Workflow Completed"}</span>
                         </div>
                         <div>
-                          <span className="font-semibold block text-gray-800">Last Updated</span>
-                          <span>{formatDateTime(doc.updatedAt)}</span>
+                          <span className="font-semibold block text-slate-900 dark:text-slate-100">Last Updated</span>
+                          <span className="text-slate-700 dark:text-slate-300">{formatDateTime(doc.updatedAt)}</span>
                         </div>
                       </div>
                     </div>
@@ -644,430 +689,496 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 xl:gap-8">
-            <aside className="xl:col-span-2 xl:-ml-3 xl:pr-4 xl:border-r xl:border-slate-300/70">
-              <section className="w-full theme-bg-card theme-border border rounded-3xl p-4">
-                <h2 className="text-sm font-bold theme-text-main">Control Panel</h2>
-                <p className="text-xs theme-text-sec mt-1">Quick actions for your account.</p>
+            {/* Sidebar Navigation */}
+            <aside className="xl:col-span-3">
+              <section className="w-full bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-xl p-5 shadow-sm space-y-4">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Control Panel</h2>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Quick actions for your account.</p>
+                </div>
 
-                <div className="space-y-3 mt-4">
+                <div className="space-y-2 mt-4">
                   <button
                     onClick={() => navigate("/workflow-documents")}
-                    className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-indigo-200 theme-bg-card px-3 py-3 text-left hover:bg-indigo-50 transition"
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group"
                   >
                     <span className="flex items-center gap-3">
-                      <span className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                      <span className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/20 group-hover:scale-105 transition-transform">
                         W
                       </span>
                       <span>
-                        <span className="block font-semibold theme-text-main">Workflow Documents</span>
-                        <span className="block text-xs text-slate-500">View all documents</span>
+                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100">Workflow Documents</span>
+                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">View all documents</span>
                       </span>
                     </span>
-                    <span className="text-slate-400 text-sm font-bold">{">"}</span>
+                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
                   </button>
 
                   <button
                     onClick={() => navigate("/notifications")}
-                    className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-blue-200 theme-bg-card px-3 py-3 text-left hover:bg-blue-50 transition"
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group"
                   >
                     <span className="flex items-center gap-3">
-                      <span className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
+                      <span className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center font-bold border border-blue-500/20 group-hover:scale-105 transition-transform">
                         N
                       </span>
                       <span>
-                        <span className="block font-semibold theme-text-main">Notifications</span>
-                        <span className="block text-xs text-slate-500">Inbox and alerts</span>
+                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          Notifications
+                          {unreadCount > 0 && (
+                            <span className="inline-flex min-w-[16px] h-4 px-1 items-center justify-center rounded-full bg-purple-500 text-white text-[9px] font-bold leading-none font-sans">
+                              {unreadCount > 99 ? "99+" : unreadCount}
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">Inbox and alerts</span>
                       </span>
                     </span>
-                    <span className="flex items-center gap-2">
-                      {unreadCount > 0 && (
-                        <span className="inline-flex min-w-[24px] h-[24px] px-1 items-center justify-center rounded-full bg-purple-500 text-white text-xs font-bold">
-                          {unreadCount > 99 ? "99+" : unreadCount}
-                        </span>
-                      )}
-                      <span className="text-slate-400 text-sm font-bold">{">"}</span>
-                    </span>
+                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
                   </button>
 
-                <button
-                  onClick={() => navigate("/settings")}
-                  className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-emerald-200 bg-white px-3 py-3 text-left hover:bg-emerald-50 transition"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                      S
-                    </span>
-                    <span>
-                      <span className="block font-semibold text-slate-800">Settings</span>
-                      <span className="block text-xs text-slate-500">Profile and security</span>
-                    </span>
-                  </span>
-                  <span className="text-slate-400 text-sm font-bold">{">"}</span>
-                </button>
-
-                {canViewUserControl && (
                   <button
-                    onClick={() => navigate("/user-control")}
-                    className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-amber-200 bg-white px-3 py-3 text-left hover:bg-amber-50 transition"
+                    onClick={() => navigate("/settings")}
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group"
                   >
                     <span className="flex items-center gap-3">
-                      <span className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold">
-                        U
+                      <span className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/20 group-hover:scale-105 transition-transform">
+                        S
                       </span>
                       <span>
-                        <span className="block font-semibold text-slate-800">User Control</span>
-                        <span className="block text-xs text-slate-500">Manage user access</span>
+                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100">Settings</span>
+                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">Profile and security</span>
                       </span>
                     </span>
-                    <span className="text-slate-400 text-sm font-bold">{">"}</span>
+                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
                   </button>
-                )}
+
+                  {canViewUserControl && (
+                    <button
+                      onClick={() => navigate("/user-control")}
+                      className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group"
+                    >
+                      <span className="flex items-center gap-3">
+                        <span className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center font-bold border border-amber-500/20 group-hover:scale-105 transition-transform">
+                          U
+                        </span>
+                        <span>
+                          <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100">User Control</span>
+                          <span className="block text-[10px] text-slate-500 dark:text-slate-400">Manage user access</span>
+                        </span>
+                      </span>
+                      <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={handleLogout}
-                    className="w-[calc(100%+1.5cm)] flex items-center justify-between rounded-2xl border border-red-700 bg-red-600 px-3 py-3 text-left hover:bg-red-700 transition"
+                    className="w-full flex items-center justify-between rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-955/20 p-3 text-left hover:bg-red-100 dark:hover:bg-red-950/40 transition-all duration-300 group"
                   >
                     <span className="flex items-center gap-3">
-                      <span className="w-10 h-10 rounded-full bg-white/20 text-white flex items-center justify-center font-bold">
+                      <span className="w-9 h-9 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center font-bold border border-red-500/20 group-hover:scale-105 transition-transform">
                         L
                       </span>
                       <span>
-                        <span className="block font-semibold text-white">Logout</span>
-                        <span className="block text-xs text-red-100">Sign out safely</span>
+                        <span className="block font-semibold text-xs text-red-700">Logout</span>
+                        <span className="block text-[10px] text-red-500">Sign out safely</span>
                       </span>
                     </span>
-                    <span className="text-red-100 text-sm font-bold">{">"}</span>
+                    <span className="text-red-600 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
                   </button>
                 </div>
               </section>
             </aside>
 
-            <aside className="xl:col-span-5 xl:pl-2">
-              <section className="theme-card p-5 rounded shadow-sm h-full">
-                <h2 className="text-lg font-bold theme-text-main">Document Current Location</h2>
-                <p className="text-xs theme-text-muted mt-1">
-                  Live refreshes every {LIVE_REFRESH_MS / 1000} seconds
-                </p>
-                <p className="text-xs theme-text-muted">Last sync: {formatDateTime(lastSyncedAt)}</p>
+            {/* Document Location Tracker */}
+            <aside className="xl:col-span-4">
+              <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all rounded-xl p-6 shadow-sm h-full space-y-4">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Location Tracker</h2>
+                  <div className="flex items-center justify-between mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>Refreshes every {LIVE_REFRESH_MS / 1000}s</span>
+                    <span>Sync: {formatDateTime(lastSyncedAt)}</span>
+                  </div>
+                </div>
 
                 {documents.length === 0 ? (
-                  <p className="text-gray-500 text-sm mt-4">No documents available to track.</p>
+                  <p className="text-slate-500 dark:text-slate-400 text-sm mt-4 text-center py-6 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">No documents available to track.</p>
                 ) : (
-                  <>
-                    <label className="block text-sm text-gray-700 font-semibold mt-4 mb-2">
-                      Select Document
-                    </label>
-                    <select
-                      value={selectedTrackingId}
-                      onChange={(e) => setSelectedTrackingId(e.target.value)}
-                      className="w-full theme-input border p-2 rounded text-sm focus:outline-none"
-                    >
-                      {documents.map((doc) => (
-                        <option key={doc._id} value={doc.trackingId}>
-                          {doc.trackingId} - {doc.title}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1.5 uppercase tracking-wider">
+                        Select Document
+                      </label>
+                      <select
+                        value={selectedTrackingId}
+                        onChange={(e) => setSelectedTrackingId(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition"
+                      >
+                        {documents.map((doc) => (
+                          <option key={doc._id} value={doc.trackingId} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                            {doc.trackingId} - {doc.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
                     {trackedDocument && (
-                      <div className="mt-4">
-                        <div className="theme-bg-secondary theme-border border rounded p-3">
-                          <p className="text-xs text-gray-600">
+                      <div className="space-y-4">
+                        <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 space-y-1.5 shadow-sm transition-all duration-300">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             Sender:{" "}
-                            <span className="font-semibold text-gray-800">
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">
                               {trackedDocument.sender?.name || "N/A"}
                             </span>
                           </p>
-                          <p className="text-xs text-gray-600 mt-1">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             Receivers in path:{" "}
-                            <span className="font-semibold text-gray-800">
+                            <span className="font-semibold text-slate-900 dark:text-slate-100">
                               {trackedDocument.route?.length || 0}
                             </span>
                           </p>
                         </div>
 
-                        <div className="relative pt-6 pb-2">
+                        {/* Interactive Timeline Stepper */}
+                        <div className="relative pt-6 pb-2 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 bg-slate-50 dark:bg-slate-800/60 shadow-sm transition-all duration-300">
                           {trackedDocument.route?.length > 1 && (
-                            <>
-                              <div className="absolute left-14 right-14 top-[58px] h-2 bg-gray-200 rounded"></div>
+                            <div className="absolute left-[3.25rem] right-14 top-[56px] h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                               <div
-                                className="absolute left-14 top-[58px] h-2 bg-emerald-500 rounded transition-all duration-300"
-                                style={{ width: `calc((100% - 7rem) * ${connectorProgressPercent(trackedDocument.route) / 100})` }}
+                                className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                                style={{ width: `${connectorProgressPercent(trackedDocument.route)}%` }}
                               ></div>
-                            </>
+                            </div>
                           )}
 
-                          <div className="relative flex gap-4 overflow-x-auto pb-2">
-                            {trackedDocument.route?.map((step, index) => (
-                              <div key={`${step.userId}-${index}`} className="min-w-[96px] text-center">
-                                <div
-                                  className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center text-sm font-bold ${stepCircleClass(step)}`}
-                                  title={stepStatusLabel(step)}
-                                >
-                                  {index + 1}
+                          <div className="relative flex gap-6 overflow-x-auto pb-4 scrollbar-thin">
+                            {trackedDocument.route?.map((step, index) => {
+                              const isCompleted = step.status === "completed";
+                              const isCurrent = step.status === "current";
+                              const isAccepted = step.acceptedAt;
+
+                              let circleColor = "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700";
+                              let pulse = "";
+                              
+                              if (isCompleted) {
+                                circleColor = "bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-500/20";
+                              } else if (isCurrent) {
+                                if (isAccepted) {
+                                  circleColor = "bg-gradient-to-tr from-teal-600 to-cyan-500 text-white shadow-lg shadow-teal-500/20";
+                                } else {
+                                  circleColor = "bg-gradient-to-tr from-amber-500 to-yellow-400 text-white shadow-lg shadow-amber-500/20";
+                                  pulse = "animate-pulse";
+                                }
+                              }
+
+                              return (
+                                <div key={`${step.userId}-${index}`} className="min-w-[96px] text-center shrink-0">
+                                  <div
+                                    className={`w-12 h-12 mx-auto rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${circleColor} ${pulse}`}
+                                    title={stepStatusLabel(step)}
+                                  >
+                                    {index + 1}
+                                  </div>
+                                  <p className="text-xs font-bold text-slate-900 dark:text-slate-100 mt-2 leading-tight truncate px-1">
+                                    {step.name}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{stepStatusLabel(step)}</p>
                                 </div>
-                                <p className="text-xs font-semibold text-gray-700 mt-2 leading-tight">
-                                  {step.name}
-                                </p>
-                                <p className="text-[11px] text-gray-500 mt-1">{stepStatusLabel(step)}</p>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
 
-                        <div className="mt-3 theme-bg-secondary theme-border border rounded p-3 space-y-3">
+                        {/* Tracker Details Footer */}
+                        <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 space-y-3 shadow-sm transition-all duration-300">
                           <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-gray-800">Live Workflow Summary</p>
+                            <p className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Live Workflow Summary</p>
                             <span
-                              className={`px-2.5 py-1 rounded-full text-xs font-bold ${trackedLocation?.isCompleted
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-blue-100 text-blue-700"
-                                }`}
+                              className={`rounded-full text-xs font-semibold border px-3 py-1 ${
+                                trackedLocation?.isCompleted
+                                  ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                  : "bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800"
+                              }`}
                             >
                               {trackedDocument.status}
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                            <div className="theme-card rounded p-2">
-                              <p className="theme-text-muted">Current Location</p>
-                              <p className="font-semibold theme-text-main">{trackedLocation?.currentLocation}</p>
+                          <div className="grid grid-cols-2 gap-3 text-xs">
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-sm transition-all duration-300">
+                              <p className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-semibold mb-0.5">Current Location</p>
+                              <p className="font-bold text-slate-900 dark:text-slate-100 truncate">{trackedLocation?.currentLocation}</p>
                             </div>
-                            <div className="theme-card rounded p-2">
-                              <p className="theme-text-muted">Next Location</p>
-                              <p className="font-semibold theme-text-main">{trackedLocation?.nextLocation}</p>
+                            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-sm transition-all duration-300">
+                              <p className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-semibold mb-0.5">Next Location</p>
+                              <p className="font-bold text-slate-900 dark:text-slate-100 truncate">{trackedLocation?.nextLocation}</p>
                             </div>
                           </div>
                         </div>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </section>
             </aside>
 
+            {/* Document Feed Column */}
             <div className="xl:col-span-5 space-y-6">
-              <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Stats badges */}
+              <section className="grid grid-cols-3 gap-3">
                 <button
                   type="button"
                   onClick={() => handleCardFilterClick("all")}
-                  className={`theme-bg-card p-5 rounded shadow-sm border text-left transition ${
+                  className={`bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-4 rounded-xl border text-left transition-all duration-300 premium-card ${
                     activeCardFilter === "all"
-                    ? "border-blue-500 ring-2 ring-blue-100"
-                    : "border-[var(--border-color)] hover:border-blue-200"
-                    }`}
+                      ? "border-indigo-600 dark:border-indigo-500 ring-2 ring-indigo-500/10"
+                      : "border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none"
+                  }`}
                 >
-                  <p className="text-sm theme-text-muted">Assigned To Me</p>
-                  <p className="text-3xl font-bold theme-text-main">{documents.length}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Assigned</p>
+                  <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">{documents.length}</p>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleCardFilterClick("action")}
-                  className={`theme-bg-card p-5 rounded shadow-sm border text-left transition ${
+                  className={`bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-4 rounded-xl border text-left transition-all duration-300 premium-card ${
                     activeCardFilter === "action"
-                    ? "border-orange-500 ring-2 ring-orange-100"
-                    : "border-[var(--border-color)] hover:border-orange-200"
-                    }`}
+                      ? "border-amber-500 ring-2 ring-amber-500/10"
+                      : "border-slate-200/80 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500 hover:shadow-lg dark:shadow-none"
+                  }`}
                 >
-                  <p className="text-sm theme-text-muted">Needs My Action</p>
-                  <p className="text-3xl font-bold text-orange-600">{needsMyAction.length}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Action</p>
+                  <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{needsMyAction.length}</p>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleCardFilterClick("notification")}
-                  className={`theme-bg-card p-5 rounded shadow-sm border text-left transition ${
+                  className={`bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-4 rounded-xl border text-left transition-all duration-300 premium-card ${
                     activeCardFilter === "notification"
-                    ? "border-purple-500 ring-2 ring-purple-100"
-                    : "border-[var(--border-color)] hover:border-purple-200"
-                    }`}
+                      ? "border-rose-500 ring-2 ring-rose-500/10"
+                      : "border-slate-200/80 dark:border-slate-800 hover:border-rose-400 dark:hover:border-rose-500 hover:shadow-lg dark:shadow-none"
+                  }`}
                 >
-                  <p className="text-sm theme-text-muted">Unread Notifications</p>
-                  <p className="text-3xl font-bold text-purple-700">{unreadCount}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Alerts</p>
+                  <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{unreadCount}</p>
                 </button>
-
-                <div className="theme-card p-5 rounded shadow-sm flex flex-col gap-2">
-                  <button
-                    onClick={() => navigate("/create-document")}
-                    className="w-full bg-blue-600 text-white py-2 rounded font-semibold hover:bg-blue-700 transition"
-                  >
-                    Create Document
-                  </button>
-                  <button
-                    onClick={() => navigate("/track-document")}
-                    className="w-full bg-emerald-600 text-white py-2 rounded font-semibold hover:bg-emerald-700 transition"
-                  >
-                    Track Document
-                  </button>
-                </div>
               </section>
 
-            <section ref={documentsSectionRef} className="bg-white p-6 rounded shadow-sm border border-gray-100">
-  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-6 border-b border-gray-100 pb-4">
-    <div>
-      <h2 className="text-xl font-bold text-gray-800">{filteredDocumentsTitle}</h2>
-      <p className="text-xs text-gray-500 mt-1">Showing all records matching your selected filter view.</p>
-    </div>
+              {/* Action Buttons Column */}
+              <section className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-xl p-4 grid grid-cols-2 gap-3 shadow-sm">
+                <button
+                  onClick={() => navigate("/create-document")}
+                  className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white py-2.5 rounded-xl font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Create Document
+                </button>
+                <button
+                  onClick={() => navigate("/track-document")}
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl font-bold transition shadow-lg shadow-slate-500/10 flex items-center justify-center gap-2 text-xs"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Track Document
+                </button>
+              </section>
 
-    <div className="flex gap-2">
-      {activeCardFilter !== "all" && (
-        <button
-          onClick={() => setActiveCardFilter("all")}
-          className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-4 py-2 rounded-xl text-sm font-semibold transition"
-        >
-          Show All
-        </button>
-      )}
-      <button
-        onClick={() => fetchDashboardData(false)}
-        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-xl text-sm font-semibold transition"
-      >
-        Refresh
-      </button>
-    </div>
-  </div>
+              {/* Core document feed */}
+              <section ref={documentsSectionRef} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-xl p-6 shadow-sm space-y-5">
+                <div className="flex flex-wrap justify-between items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-4">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">{filteredDocumentsTitle}</h2>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Only documents where <strong>you are the active current holder</strong> and acceptance is still pending.</p>
+                  </div>
 
-  {displayedDocuments.length === 0 ? (
-    <p className="text-gray-500 py-4 text-center border border-dashed border-gray-200 rounded-xl text-sm">
-      {documentSearch && "No documents match your search query."}
-      {!documentSearch && activeCardFilter === "all" && "No documents are currently assigned to you."}
-      {!documentSearch && activeCardFilter === "action" && "No documents are currently awaiting your acceptance."}
-      {!documentSearch && activeCardFilter === "notification" && "No documents are linked to unread notifications."}
-    </p>
-  ) : (
-    <div className="space-y-3">
-      {displayedDocuments.map((doc) => (
-        <div key={doc._id} className="border border-gray-200 rounded p-4 bg-gray-50">
-          <div className="flex flex-wrap justify-between gap-3 items-start">
-            <div>
-              <h3 className="text-lg font-bold text-gray-800">{doc.title}</h3>
-              <p className="text-sm text-gray-600">Tracking ID: {doc.trackingId}</p>
-              <p className="text-sm text-gray-600">Status: {doc.status}</p>
-              <p className="text-sm text-gray-600">
-                Receipt Status:{" "}
-                <span className={`font-semibold ${getReceiptStatus(doc) === "Accepted" ? "text-emerald-700" : "text-yellow-700"}`}>
-                  {getReceiptStatus(doc)}
-                </span>
-              </p>
-              <p className="text-sm text-gray-600">
-                Current Holder: {doc.currentHolder?.name || "Completed"}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              {(doc.workflow?.canAccept || doc.workflow?.canForward) && (
-                <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold">
-                  Action Required
-                </span>
-              )}
-              <button
-                onClick={() => navigate(`/track-document/${doc.trackingId}`)}
-                className="bg-blue-600 text-white px-4 py-2 rounded font-semibold hover:bg-blue-700 transition"
-              >
-                Open Workflow
-              </button>
-            </div>
-          </div>
-          <p className="text-sm text-gray-700 mt-2">Route: {routeSummary(doc)}</p>
-          <p className="text-xs text-gray-500 mt-1">Updated: {formatDateTime(doc.updatedAt)}</p>
-
-          <div className="mt-4 rounded border border-blue-100 bg-blue-50 p-3">
-            <div className="flex flex-wrap gap-2">
-              {!doc.file ? (
-                <form onSubmit={(event) => handleUploadFile(doc, event)} className="flex flex-wrap gap-2">
-                  <input
-                    type="file"
-                    onChange={(event) =>
-                      setSelectedFiles((prev) => ({ ...prev, [doc.trackingId]: event.target.files?.[0] || null }))
-                    }
-                    className="border border-gray-300 p-2 rounded text-sm bg-white"
-                  />
-                  <button
-                    type="submit"
-                    disabled={uploadingDocumentId === doc.trackingId}
-                    className="bg-blue-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-blue-700 disabled:bg-gray-400"
-                  >
-                    {uploadingDocumentId === doc.trackingId ? "Uploading..." : "Upload File"}
-                  </button>
-                </form>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handlePreviewFile(doc)}
-                    disabled={actionDocumentId === doc.trackingId}
-                    className="bg-indigo-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-indigo-700 disabled:bg-gray-400"
-                  >
-                    Preview File
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadFile(doc)}
-                    disabled={actionDocumentId === doc.trackingId}
-                    className="bg-emerald-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-emerald-700 disabled:bg-gray-400"
-                  >
-                    Download File
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleShowVersions(doc)}
-                    disabled={actionDocumentId === doc.trackingId}
-                    className="bg-amber-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-amber-700 disabled:bg-gray-400"
-                  >
-                    Version History
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteDocument(doc)}
-                    disabled={actionDocumentId === doc.trackingId}
-                    className="bg-red-600 text-white px-3 py-2 rounded text-sm font-semibold hover:bg-red-700 disabled:bg-gray-400"
-                  >
-                    Delete Document
-                  </button>
-                </>
-              )}
-            </div>
-
-            {doc.file && (
-              <div className="mt-3 text-sm text-gray-700">
-                <p className="font-semibold">Attached file: {doc.file.originalFileName}</p>
-                <p className="text-xs text-gray-500">
-                  {doc.file.fileExtension?.toUpperCase()} • {Math.round(doc.file.fileSize / 1024)} KB • Version {doc.file.currentVersion || 1}
-                </p>
-              </div>
-            )}
-
-            {versionHistoryByDoc[doc.trackingId]?.length > 0 && (
-              <div className="mt-3 rounded border border-gray-200 bg-white p-3">
-                <h4 className="font-semibold text-gray-800 mb-2">Version History</h4>
-                <ul className="space-y-2 text-sm text-gray-700">
-                  {versionHistoryByDoc[doc.trackingId].map((version) => (
-                    <li key={`${version.versionNumber}-${version.storedFileName}`} className="border-b border-gray-100 pb-2 flex items-center justify-between gap-2">
-                      <div>
-                        <p className="font-medium">Version {version.versionNumber}: {version.originalFileName}</p>
-                        <p className="text-xs text-gray-500">{formatDateTime(version.uploadedAt)}</p>
-                      </div>
+                  <div className="flex gap-1.5">
+                    {activeCardFilter !== "all" && (
                       <button
-                        type="button"
-                        onClick={() => handleDownloadVersion(doc, version)}
-                        className="bg-slate-700 text-white px-2 py-1 rounded text-xs font-semibold"
+                        onClick={() => setActiveCardFilter("all")}
+                        className="border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold transition"
                       >
-                        Download
+                        Show All
                       </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  )}
-</section>
+                    )}
+                    <button
+                      onClick={() => fetchDashboardData(false)}
+                      className="border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-300"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
 
+                {displayedDocuments.length === 0 ? (
+                  <p className="text-slate-500 dark:text-slate-400 py-8 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs leading-relaxed">
+                    {documentSearch && "No documents match your search query."}
+                    {!documentSearch && activeCardFilter === "all" && "No documents are currently waiting for your acceptance. You are either not the active holder on any document, or you have already accepted all documents assigned to you."}
+                    {!documentSearch && activeCardFilter === "action" && "No documents are currently awaiting your acceptance."}
+                    {!documentSearch && activeCardFilter === "notification" && "No documents are linked to unread notifications."}
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {displayedDocuments.map((doc) => {
+                      const requiresAction = doc.workflow?.canAccept || doc.workflow?.canForward;
+                      const isComplete = isWorkflowComplete(doc);
+                                 let statusBadge = "bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800 font-semibold px-3 py-1 rounded-full";
+                      if (isComplete) {
+                        statusBadge = "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 font-semibold px-3 py-1 rounded-full";
+                      } else if (requiresAction) {
+                        statusBadge = "bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 font-semibold px-3 py-1 rounded-full";
+                      }
+
+                      return (
+                        <div key={doc._id} className="border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-800/60 space-y-3 premium-card">
+                          <div className="flex flex-wrap justify-between gap-3 items-start">
+                            <div className="min-w-0">
+                              <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{doc.title}</h3>
+                              <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">ID: {doc.trackingId}</p>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${statusBadge}`}>
+                                {doc.status}
+                              </span>
+                              {requiresAction && (
+                                <span className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 font-semibold px-3 py-1 rounded-full text-[10px]">
+                                  Action Needed
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl p-3 transition-all duration-300">
+                            <div>
+                              <span className="font-semibold block text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Receipt Status</span>
+                              <span className={`font-bold ${getReceiptStatus(doc) === "Accepted" ? "text-emerald-600" : "text-amber-600"}`}>
+                                {getReceiptStatus(doc)}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-semibold block text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Current Holder</span>
+                              <span className="font-medium truncate block text-slate-800 dark:text-slate-200">{doc.currentHolder?.name || "Workflow Completed"}</span>
+                            </div>
+                          </div>
+
+                          <div className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                            <p className="truncate"><span className="font-semibold text-slate-500 dark:text-slate-400">Route:</span> {routeSummary(doc)}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Updated: {formatDateTime(doc.updatedAt)}</p>
+                          </div>
+
+                          {/* File Actions Container */}
+                          <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 shadow-sm dark:shadow-none transition-all duration-300">
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {!doc.file ? (
+                                <form onSubmit={(event) => handleUploadFile(doc, event)} className="flex flex-wrap items-center gap-2 w-full">
+                                  <input
+                                    type="file"
+                                    onChange={(event) =>
+                                      setSelectedFiles((prev) => ({ ...prev, [doc.trackingId]: event.target.files?.[0] || null }))
+                                    }
+                                    className="block w-full max-w-[200px] text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 file:transition file:cursor-pointer"
+                                  />
+                                  <button
+                                    type="submit"
+                                    disabled={uploadingDocumentId === doc.trackingId}
+                                    className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-all disabled:bg-slate-300"
+                                  >
+                                    {uploadingDocumentId === doc.trackingId ? "Uploading..." : "Upload File"}
+                                  </button>
+                                </form>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePreviewFile(doc)}
+                                    disabled={actionDocumentId === doc.trackingId}
+                                    className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-all disabled:bg-slate-350"
+                                  >
+                                    Preview
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadFile(doc)}
+                                    disabled={actionDocumentId === doc.trackingId}
+                                    className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition disabled:bg-slate-355 shadow-sm"
+                                  >
+                                    Download
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleShowVersions(doc)}
+                                    disabled={actionDocumentId === doc.trackingId}
+                                    className="border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 disabled:bg-slate-100"
+                                  >
+                                    Versions
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteDocument(doc)}
+                                    disabled={actionDocumentId === doc.trackingId}
+                                    className="bg-red-50 dark:bg-red-955/20 text-red-700 dark:text-red-305 border border-red-200 dark:border-red-900/50 hover:bg-red-100 dark:hover:bg-red-955/40 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 disabled:bg-slate-100"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => navigate(`/track-document/${doc.trackingId}`)}
+                                className="border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 ml-auto shrink-0"
+                              >
+                                View Timeline
+                              </button>
+                            </div>
+
+                            {doc.file && (
+                              <div className="mt-3 text-xs text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 pt-2 flex items-center gap-2 transition-all duration-300">
+                                <svg className="w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                                <div className="min-w-0">
+                                  <p className="font-semibold truncate text-slate-800 dark:text-slate-200">{doc.file.originalFileName}</p>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                    {doc.file.fileExtension?.toUpperCase()} • {Math.round(doc.file.fileSize / 1024)} KB • Version {doc.file.currentVersion || 1}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {versionHistoryByDoc[doc.trackingId]?.length > 0 && (
+                              <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 space-y-2 shadow-sm transition-all duration-300">
+                                <h4 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 pb-1">Version History</h4>
+                                <ul className="space-y-1.5 max-h-36 overflow-y-auto scrollbar-thin pr-1">
+                                  {versionHistoryByDoc[doc.trackingId].map((version) => (
+                                    <li key={`${version.versionNumber}-${version.storedFileName}`} className="pb-1.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-xs">
+                                      <div className="min-w-0">
+                                        <p className="font-semibold truncate text-slate-800 dark:text-slate-200 text-[11px]">V{version.versionNumber}: {version.originalFileName}</p>
+                                        <p className="text-[9px] text-slate-500 dark:text-slate-400">{formatDateTime(version.uploadedAt)}</p>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownloadVersion(doc, version)}
+                                        className="border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-350 bg-white dark:bg-slate-850 hover:bg-slate-50 dark:hover:bg-slate-700 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all duration-300 shrink-0"
+                                      >
+                                        Download
+                                      </button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
           </div>
-        </div>
         )}
       </main>
     </div>

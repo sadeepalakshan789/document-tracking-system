@@ -81,75 +81,92 @@ export default function Notifications() {
 
   if (loading) {
     return (
-      <div
-        className="relative h-screen bg-gray-900 bg-cover bg-center bg-no-repeat bg-fixed auth-wallpaper-animate"
-        style={{ backgroundImage: `url(${authWallpaper})` }}
-      >
-        <div className="absolute inset-0 bg-slate-900/45"></div>
-        <div className="relative z-10 h-full flex items-center justify-center text-white text-lg font-semibold">
-          Loading notifications...
+      <div className="min-h-screen theme-bg-primary flex items-center justify-center theme-text-main text-lg font-semibold">
+        <div className="flex flex-col items-center gap-3">
+          <svg className="w-10 h-10 animate-spin text-blue-600" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          <span>Loading notifications...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div
-      className="relative h-screen overflow-hidden bg-gray-900 bg-cover bg-center bg-no-repeat bg-fixed auth-wallpaper-animate"
-      style={{ backgroundImage: `url(${authWallpaper})` }}
-    >
-      <div className="absolute inset-0 bg-slate-900/45"></div>
-      <div className="relative z-10 h-full p-6">
-      <div className="max-w-6xl mx-auto h-full theme-card backdrop-blur-sm p-8 rounded shadow-md flex flex-col">
-        <div className="flex flex-wrap justify-between items-center gap-3 mb-5">
-          <div>
-            <h2 className="text-2xl font-bold theme-text-main">Notifications</h2>
-            <p className="text-sm theme-text-muted">
-              Unread: <span className="font-semibold">{unreadCount}</span>
-            </p>
+    <div className="min-h-screen theme-bg-primary text-[var(--text-main)] py-8 px-4 md:px-8 transition-colors duration-200">
+      <div className="max-w-4xl mx-auto theme-card rounded-3xl p-6 md:p-8 shadow-xl border theme-border flex flex-col space-y-6">
+        <div className="flex flex-wrap justify-between items-center gap-4 border-b theme-border pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+              <svg className="w-6 h-6 animate-swing" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold theme-text-main">System Notifications</h2>
+              <p className="text-xs theme-text-muted mt-0.5">
+                You have <span className="font-semibold text-indigo-400">{unreadCount}</span> unread alert{unreadCount !== 1 ? "s" : ""}
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-2">
             <button
               onClick={handleMarkAllRead}
               disabled={actionLoading || notifications.length === 0}
-              className="bg-purple-100 hover:bg-purple-200 text-purple-800 px-4 py-2 rounded text-sm font-semibold disabled:bg-gray-200 disabled:text-gray-500"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-md shadow-indigo-500/5 disabled:opacity-50"
             >
-              {actionLoading ? "Marking..." : "Mark All Read"}
+              {actionLoading ? "Processing..." : "Mark All Read"}
             </button>
             <button
               onClick={() => navigate("/dashboard")}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm font-semibold"
+              className="border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition"
             >
               Back
             </button>
           </div>
         </div>
 
-        {error && <p className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</p>}
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-200 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2.5">
+            <svg className="w-5 h-5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
 
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+        <div className="space-y-4">
           {notifications.length === 0 ? (
-            <p className="text-gray-500">No notifications yet.</p>
+            <div className="text-center py-12 border border-dashed theme-border rounded-2xl">
+              <p className="text-sm theme-text-muted">You are all caught up! No notifications yet.</p>
+            </div>
           ) : (
             <ul className="space-y-3">
               {notifications.map((notification) => (
                 <li
                   key={notification._id}
-                  className={`p-4 rounded border ${
+                  className={`p-4 rounded-2xl border transition shadow-sm premium-card ${
                     notification.isRead
-                      ? "theme-bg-secondary theme-border"
-                      : "bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-700/40"
+                      ? "theme-bg-secondary/40 theme-border"
+                      : "bg-indigo-500/5 border-indigo-500/30 dark:bg-indigo-950/20 dark:border-indigo-700/40"
                   }`}
                 >
-                  <p className="text-base theme-text-main">{notification.message}</p>
-                  <p className="text-sm theme-text-muted mt-1">{formatDateTime(notification.createdAt)}</p>
+                  <div className="flex items-start gap-3">
+                    <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${notification.isRead ? "bg-slate-500/30" : "bg-indigo-500 animate-ping"}`} />
+                    <div className="min-w-0">
+                      <p className={`text-xs leading-relaxed ${notification.isRead ? "theme-text-sec" : "theme-text-main font-semibold"}`}>
+                        {notification.message}
+                      </p>
+                      <p className="text-[10px] theme-text-muted mt-1">{formatDateTime(notification.createdAt)}</p>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </div>
-      </div>
       </div>
     </div>
   );

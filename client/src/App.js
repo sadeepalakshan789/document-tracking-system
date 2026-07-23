@@ -20,6 +20,7 @@ import UserControlDetail from './pages/UserControlDetail';
 
 // Components
 import ProtectedRoute from './components/ProtectedRoute';
+import ThemeToggle from './components/ThemeToggle';
 
 // Optional: simple auth simulation using localStorage token
 const PrivateRoute = ({ children }) => {
@@ -45,6 +46,7 @@ function App() {
   return (
     <ThemeProvider>
       <Router>
+        <ThemeToggle />
         <Routes>
         {/* ── Public routes ── */}
         <Route path="/" element={<Navigate to="/login" />} />
