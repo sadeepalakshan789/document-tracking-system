@@ -240,15 +240,12 @@ const getDocument = async (req, res) => {
 
 const getMyDocuments = async (req, res) => {
   try {
-    // Only fetch documents where the logged-in user is the active current holder
-    // AND the document is still In Transit (not completed/cancelled)
+    // Condition 1: The current holder MUST be the logged-in user
     const documents = await Document.find({
       "currentHolder.userId": req.user.id,
-      status: "In Transit",
     }).sort({ updatedAt: -1 });
 
-    // Secondary filter: exclude any document where the user's current route step
-    // has already been accepted or completed — meaning no action is needed from them
+    // Condition 2: The receipt status for the logged-in user MUST be "Pending" (!currentStep.acceptedAt)
     const actionableDocuments = documents.filter((doc) => {
       const currentStep =
         doc.currentHolderIndex >= 0 && doc.currentHolderIndex < doc.route.length
@@ -257,8 +254,8 @@ const getMyDocuments = async (req, res) => {
 
       if (!currentStep) return false;
 
-      // Only include if the step has NOT been accepted and NOT been completed
-      return !currentStep.acceptedAt && !currentStep.completedAt;
+      // Must not be accepted yet
+      return !currentStep.acceptedAt;
     });
 
     const formattedDocuments = actionableDocuments.map((doc) =>

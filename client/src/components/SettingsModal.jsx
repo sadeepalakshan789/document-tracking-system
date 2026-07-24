@@ -3,7 +3,7 @@ import { getAdminSettings, updateAdminSettings, getAuditLogs } from "../services
 import { useTheme } from "../context/ThemeContext";
 
 export default function SettingsModal({ isOpen, onClose }) {
-  const [activeTab, setActiveTab] = useState("theme");
+  const [activeTab, setActiveTab] = useState("documents");
   const { currentTheme, setTheme: setGlobalTheme } = useTheme();
 
   // Individual Settings States
@@ -142,11 +142,6 @@ export default function SettingsModal({ isOpen, onClose }) {
   };
 
   const tabs = [
-    { id: "theme", label: "Theme Settings", icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 7a5 5 0 100 10 5 5 0 000-10z" />
-      </svg>
-    )},
     { id: "documents", label: "Document Controls", icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -224,7 +219,6 @@ export default function SettingsModal({ isOpen, onClose }) {
                 {tabs.find((t) => t.id === activeTab)?.label}
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                {activeTab === "theme" && "Choose custom visuals and persist your own browser preference."}
                 {activeTab === "documents" && "Configure storage, limits, formats, and auto-archive schedules."}
                 {activeTab === "workflow" && "Set defaults for routes, workflow parameters, and email rules."}
                 {activeTab === "security" && "Manage password strengths, user roles, timeouts, and university policies."}
@@ -254,51 +248,6 @@ export default function SettingsModal({ isOpen, onClose }) {
               </div>
             ) : (
               <>
-                {/* Theme Tab */}
-                {activeTab === "theme" && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <button
-                        onClick={() => handleThemeToggle("dark")}
-                        className={`p-6 rounded-2xl border text-left flex flex-col justify-between transition ${
-                          theme === "dark"
-                            ? "bg-purple-900/10 border-purple-500 text-white shadow-xl shadow-purple-950/20"
-                            : "bg-slate-900 border-slate-700/60 text-slate-400 hover:border-slate-500 hover:text-slate-200"
-                        }`}
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center mb-4">
-                          <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-sm">Dark Mode (Your Preference)</h4>
-                          <p className="text-xs text-slate-500 mt-1">Deep space themes using rich, customized purple accents.</p>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => handleThemeToggle("light")}
-                        className={`p-6 rounded-2xl border text-left flex flex-col justify-between transition ${
-                          theme === "light"
-                            ? "bg-purple-600/10 border-purple-500 text-white shadow-xl shadow-purple-950/20"
-                            : "bg-slate-900 border-slate-700/60 text-slate-400 hover:border-slate-500 hover:text-slate-200"
-                        }`}
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center mb-4">
-                          <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464a1 1 0 10-1.414 1.414l.707.707a1 1 0 001.414-1.414l-.707-.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-sm">Light Mode</h4>
-                          <p className="text-xs text-slate-500 mt-1">Clean white layouts designed for enhanced daylight readability.</p>
-                        </div>
-                      </button>
-                    </div>
-                  </div>
-                )}
-
                 {/* Documents Tab */}
                 {activeTab === "documents" && (
                   <div className="space-y-5">

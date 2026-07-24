@@ -45,17 +45,18 @@ function Alert({ type, message, onClose }) {
 function RoleBadge({ role }) {
   const normalizedRole = role ? role.toUpperCase().replace(/-/g, "_") : "NORMAL_USER";
   
-  const map = {
-    "SUPER_ADMIN": "bg-purple-500/20 text-purple-300 border-purple-500/40",
-    "SUB_ADMIN": "bg-blue-500/20 text-blue-300 border-blue-500/40",
-    "NORMAL_USER": "bg-slate-500/20 text-slate-300 border-slate-500/40",
-  };
+  const isVioletRole = ["SUPER_ADMIN", "SUB_ADMIN", "ADMIN"].includes(normalizedRole);
+  
+  if (isVioletRole) {
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 border border-violet-300 dark:bg-violet-950/60 dark:text-violet-300 dark:border-violet-800">
+        {normalizedRole}
+      </span>
+    );
+  }
+
   return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-        map[normalizedRole] ?? map.NORMAL_USER
-      }`}
-    >
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-300 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800">
       {normalizedRole}
     </span>
   );
@@ -64,13 +65,13 @@ function RoleBadge({ role }) {
 /** Pill badge for status */
 function StatusBadge({ status }) {
   return status === "active" ? (
-    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
       Active
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/40">
-      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800">
+      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
       Blocked
     </span>
   );
@@ -81,7 +82,7 @@ function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, danger = t
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-fade-in">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-fade-in">
         <div className="flex items-center gap-3 mb-4">
           <div
             className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
@@ -89,7 +90,7 @@ function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, danger = t
             }`}
           >
             <svg
-              className={`w-5 h-5 ${danger ? "text-red-400" : "text-yellow-400"}`}
+              className={`w-5 h-5 ${danger ? "text-red-500" : "text-yellow-500"}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -102,13 +103,13 @@ function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, danger = t
               />
             </svg>
           </div>
-          <h3 className="text-white font-semibold text-base">{title}</h3>
+          <h3 className="text-slate-900 dark:text-white font-semibold text-base">{title}</h3>
         </div>
-        <p className="text-slate-400 text-sm mb-6 leading-relaxed">{message}</p>
+        <p className="text-slate-600 dark:text-slate-400 text-sm mb-6 leading-relaxed">{message}</p>
         <div className="flex gap-3 justify-end">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 transition"
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition"
           >
             Cancel
           </button>
@@ -318,18 +319,18 @@ export default function SuperAdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      <header className="sticky top-0 z-30 bg-white dark:bg-[#0b0f19]/80 backdrop-blur-md border-b border-slate-200 dark:border-[#1f2937]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+      <header className="sticky top-0 z-30 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-500/30 text-white shadow-md py-3 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto flex items-center justify-between h-12">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-lg flex items-center justify-center text-white ring-2 ring-indigo-400/30">
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M9.661 2.237a.531.531 0 01.678 0 11.947 11.947 0 007.078 2.749.5.5 0 01.479.425c.069.52.104 1.05.104 1.589 0 5.162-3.26 9.563-7.834 11.256a.48.48 0 01-.332 0C5.26 16.563 2 12.162 2 7c0-.538.035-1.069.104-1.589a.5.5 0 01.48-.425 11.947 11.947 0 007.077-2.749z" clipRule="evenodd" />
               </svg>
             </div>
             <div>
-              <h1 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">Super Admin</h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">Control Panel</p>
+              <h1 className="text-sm font-bold text-white leading-tight">Super Admin</h1>
+              <p className="text-xs text-indigo-200 leading-tight">Control Panel</p>
             </div>
           </div>
 
@@ -337,7 +338,7 @@ export default function SuperAdminDashboard() {
             <button
               onClick={() => setIsSettingsModalOpen(true)}
               title="Settings"
-              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-lg text-indigo-200 hover:text-white hover:bg-slate-800/60 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -352,7 +353,7 @@ export default function SuperAdminDashboard() {
                 window.dispatchEvent(new Event("authChange"));
                 navigate("/login");
               }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-red-500 hover:text-white hover:bg-red-600 transition"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-red-300 hover:text-white hover:bg-red-600/80 transition"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -365,33 +366,33 @@ export default function SuperAdminDashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-white">Admin Management</h2>
-          <p className="text-slate-600 dark:text-slate-400 mt-1 text-sm">Manage admin accounts, user statuses, and access control across the Document Tracking System.</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Admin Management</h2>
+          <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Manage admin accounts, user statuses, and access control across the Document Tracking System.</p>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: "Total Accounts", value: stats.total, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/5 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20" },
-            { label: "Admins / Sub-Admins", value: stats.admins, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-500/5 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/20" },
-            { label: "Regular Users", value: stats.regularUsers, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/5 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20" },
-            { label: "Blocked", value: stats.blocked, color: "text-red-600 dark:text-red-400", bg: "bg-red-500/5 dark:bg-red-500/10 border-red-200 dark:border-red-500/20" },
+            { label: "Total Accounts", value: stats.total, color: "text-indigo-600 dark:text-indigo-400" },
+            { label: "Super-Admins", value: stats.admins, color: "text-violet-600 dark:text-violet-400" },
+            { label: "Regular Users", value: stats.regularUsers, color: "text-emerald-600 dark:text-emerald-400" },
+            { label: "Blocked", value: stats.blocked, color: "text-rose-600 dark:text-rose-400" },
           ].map((s) => (
-            <div key={s.label} className={`rounded-xl border p-4 flex flex-col gap-1 ${s.bg}`}>
-              <span className={`text-2xl font-bold ${s.color}`}>{s.value}</span>
+            <div key={s.label} className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-1">
+              <span className={`text-2xl font-black ${s.color}`}>{s.value}</span>
               <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">{s.label}</span>
             </div>
           ))}
         </div>
 
-        <section className="p-6 rounded-xl bg-white dark:bg-[#111827]/60 border border-slate-200 dark:border-[#1f2937] shadow-sm transition-colors duration-200">
+        <section className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm transition-colors duration-200">
           <div className="flex items-center gap-3 mb-5">
-            <div className="w-8 h-8 bg-purple-600/10 border border-purple-500/20 dark:border-purple-500/30 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="w-8 h-8 bg-indigo-500/10 border border-indigo-500/20 dark:border-indigo-500/30 rounded-lg flex items-center justify-center">
+              <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-800 dark:text-white">Create New User / Admin</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Create New User / Admin</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">The new account will be pre-verified and immediately active.</p>
             </div>
           </div>
@@ -401,19 +402,19 @@ export default function SuperAdminDashboard() {
           <form onSubmit={handleCreateUser} noValidate>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="flex flex-col">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Full Name <span className="text-red-500">*</span></label>
-                <input type="text" placeholder="e.g. Saman Perera" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-[#1f2937]/50 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-[#374151] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition" disabled={formLoading} />
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Full Name <span className="text-rose-500">*</span></label>
+                <input type="text" placeholder="e.g. Saman Perera" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
               </div>
 
               <div className="flex flex-col">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Email Address <span className="text-red-500">*</span></label>
-                <input type="email" autoComplete="new-email" placeholder="user@example.com" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-[#1f2937]/50 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-[#374151] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition" disabled={formLoading} />
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Email Address <span className="text-rose-500">*</span></label>
+                <input type="email" autoComplete="new-email" placeholder="user@example.com" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
               </div>
 
               <div className="flex flex-col">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Password <span className="text-red-500">*</span></label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Password <span className="text-rose-500">*</span></label>
                 <div className="relative">
-                  <input type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Min 6 characters" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-[#1f2937]/50 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-[#374151] placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 transition pr-10" disabled={formLoading} />
+                  <input type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Min 6 characters" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 pr-10 text-sm focus:outline-none transition" disabled={formLoading} />
                   <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition" tabIndex={-1}>
                     {showPassword ? (
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
@@ -427,53 +428,53 @@ export default function SuperAdminDashboard() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
               <div className="flex flex-col">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Position <span className="text-red-500">*</span></label>
-                <select value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-[#1f2937]/50 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-[#374151] focus:outline-none focus:ring-2 focus:ring-purple-500 transition" disabled={formLoading || loadingPositions}>
-                  <option value="" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-[#1f2937]">{loadingPositions ? "Loading positions..." : "Select Position"}</option>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Position <span className="text-rose-500">*</span></label>
+                <select value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading || loadingPositions}>
+                  <option value="" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">{loadingPositions ? "Loading positions..." : "Select Position"}</option>
                   {positions && positions.length > 0 && positions.map((p) => (
-                    <option key={p} value={p} className="text-slate-900 dark:text-slate-100 bg-white dark:bg-[#1f2937]">{p}</option>
+                    <option key={p} value={p} className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">{p}</option>
                   ))}
                 </select>
               </div>
 
               <div className="flex flex-col">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">Role <span className="text-red-500">*</span></label>
-                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-[#1f2937]/50 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-[#374151] focus:outline-none focus:ring-2 focus:ring-purple-500 transition" disabled={formLoading}>
-                  <option value="NORMAL_USER" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-[#1f2937]">Normal User</option>
-                  <option value="SUB_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-[#1f2937]">Sub Admin</option>
-                  <option value="SUPER_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-[#1f2937]">Super Admin</option>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Role <span className="text-rose-500">*</span></label>
+                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading}>
+                  <option value="NORMAL_USER" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Normal User</option>
+                  <option value="SUB_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Sub Admin</option>
+                  <option value="SUPER_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Super Admin</option>
                 </select>
               </div>
             </div>
 
             <div className="mt-4 flex justify-end">
-              <button type="submit" disabled={formLoading} className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-60 text-sm font-semibold text-white transition shadow-sm">
+              <button type="submit" disabled={formLoading} className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-medium shadow-md shadow-indigo-500/20 rounded-xl px-5 py-2.5 active:scale-95 disabled:opacity-60 text-sm transition-all">
                 {formLoading ? "Creating…" : "Create User / Admin"}
               </button>
             </div>
           </form>
         </section>
 
-        <section className="bg-white dark:bg-[#111827]/60 border border-slate-200 dark:border-[#1f2937] rounded-2xl overflow-hidden shadow-sm transition-colors duration-200">
+        <section className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-colors duration-200">
           <div className="px-6 pt-6 pb-4 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1">
-              <h3 className="text-base font-semibold text-slate-800 dark:text-white">All Accounts</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">All Accounts</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{filteredUsers.length} of {users.length} accounts shown</p>
             </div>
 
             <div className="relative w-full sm:w-56">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
-              <input type="text" placeholder="Search name or email…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900/70 border border-slate-300 dark:border-slate-600 rounded-lg pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 transition" />
+              <input type="text" placeholder="Search name or email…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg pl-9 pr-3.5 py-2 text-sm focus:outline-none transition" />
             </div>
 
-            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="bg-slate-50 dark:bg-slate-900/70 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-purple-500 transition">
-              <option value="all">All Roles</option>
-              <option value="SUPER_ADMIN">Super Admin</option>
-              <option value="SUB_ADMIN">Sub Admin</option>
-              <option value="NORMAL_USER">User</option>
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg px-3.5 py-2 text-sm focus:outline-none transition">
+              <option value="all" className="bg-white dark:bg-slate-800">All Roles</option>
+              <option value="SUPER_ADMIN" className="bg-white dark:bg-slate-800">Super Admin</option>
+              <option value="SUB_ADMIN" className="bg-white dark:bg-slate-800">Sub Admin</option>
+              <option value="NORMAL_USER" className="bg-white dark:bg-slate-800">User</option>
             </select>
 
-            <button onClick={fetchUsers} disabled={loadingUsers} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition">
+            <button onClick={fetchUsers} disabled={loadingUsers} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition">
               <svg className={`w-4 h-4 ${loadingUsers ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
               Refresh
             </button>
@@ -483,25 +484,25 @@ export default function SuperAdminDashboard() {
 
           {loadingUsers ? (
             <div className="px-6 pb-6 space-y-3">
-              {[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-slate-200 dark:bg-slate-700/30 rounded-lg animate-pulse" />)}
+              {[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-slate-100 dark:bg-slate-800/50 rounded-lg animate-pulse" />)}
             </div>
           ) : usersError ? (
-            <div className="px-6 pb-8 text-center"><p className="text-red-500 dark:text-red-400 text-sm">{usersError}</p><button onClick={fetchUsers} className="mt-3 text-sm text-purple-600 dark:text-purple-400 hover:underline">Try again</button></div>
+            <div className="px-6 pb-8 text-center"><p className="text-red-500 dark:text-red-400 text-sm">{usersError}</p><button onClick={fetchUsers} className="mt-3 text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Try again</button></div>
           ) : filteredUsers.length === 0 ? (
             <div className="px-6 pb-8 text-center text-slate-500 text-sm">{search || roleFilter !== "all" ? "No accounts match your filters." : "No accounts found."}</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-t border-slate-200 dark:border-slate-700/60 bg-slate-100/50 dark:bg-slate-900/40">
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider hidden sm:table-cell">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Actions</th>
+                  <tr className="border-t border-b border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/60">
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider hidden sm:table-cell">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Role</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-700/40 text-slate-700 dark:text-slate-300">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
                   {filteredUsers.map((user) => {
                     const isSelf = user._id === currentUserId;
                     const isSuperAdminRow = user.role && user.role.toUpperCase().replace(/-/g, "_") === "SUPER_ADMIN";
@@ -512,17 +513,17 @@ export default function SuperAdminDashboard() {
                       <tr
                         key={user._id}
                         onClick={() => navigate(`/admin/users/${user._id}`)}
-                        className={`group cursor-pointer hover:bg-slate-100/70 dark:hover:bg-slate-800/40 transition-colors ${isSelf ? "bg-purple-500/5 dark:bg-purple-900/10" : ""}`}
+                        className={`group cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-800/50 transition-colors ${isSelf ? "bg-indigo-50/50 dark:bg-indigo-950/20" : ""}`}
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-sm">
                               {user.name.charAt(0).toUpperCase()}
                             </div>
                             <div>
                               <p className="font-medium text-slate-900 dark:text-white leading-tight">
                                 {user.name}
-                                {isSelf && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-purple-600/20 dark:bg-purple-600/30 text-purple-700 dark:text-purple-300 font-medium">You</span>}
+                                {isSelf && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 font-medium">You</span>}
                               </p>
                               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 sm:hidden">{user.email}</p>
                             </div>
@@ -537,7 +538,7 @@ export default function SuperAdminDashboard() {
                               onClick={(e) => { e.stopPropagation(); requestToggleStatus(user); }}
                               disabled={actionsDisabled || isActionLoading}
                               title={isSelf ? "You cannot change your own status" : isSuperAdminRow ? "Super-admin accounts cannot be blocked" : user.status === "active" ? "Block this user" : "Unblock this user"}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${actionsDisabled ? "opacity-30 cursor-not-allowed bg-slate-200 dark:bg-slate-700 text-slate-400" : user.status === "active" ? "bg-amber-500/10 dark:bg-amber-600/20 text-amber-700 dark:text-amber-300 border border-amber-500/20 dark:border-amber-600/30 hover:bg-amber-500/20 dark:hover:bg-amber-600/40" : "bg-emerald-500/10 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 dark:border-emerald-600/30 hover:bg-emerald-500/20 dark:hover:bg-emerald-600/40"}`}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${actionsDisabled ? "opacity-30 cursor-not-allowed bg-slate-200 dark:bg-slate-800 text-slate-400" : user.status === "active" ? "bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/60" : "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-900/60"}`}
                             >
                               {isActionLoading ? (
                                 <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
@@ -552,7 +553,7 @@ export default function SuperAdminDashboard() {
                               onClick={(e) => { e.stopPropagation(); requestDelete(user); }}
                               disabled={actionsDisabled || isActionLoading}
                               title={isSelf ? "You cannot delete your own account" : isSuperAdminRow ? "Super-admin accounts cannot be deleted" : "Delete this user"}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${actionsDisabled ? "opacity-30 cursor-not-allowed bg-slate-200 dark:bg-slate-700 text-slate-400" : "bg-red-50 dark:bg-red-600/20 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-600/30 hover:bg-red-100 dark:hover:bg-red-600/40"}`}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${actionsDisabled ? "opacity-30 cursor-not-allowed bg-slate-200 dark:bg-slate-800 text-slate-400" : "bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800 hover:bg-rose-200 dark:hover:bg-rose-900/60"}`}
                             >
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
                               Delete
