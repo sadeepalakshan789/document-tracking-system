@@ -13,7 +13,6 @@ import {
   rerouteDocument,
   uploadDocumentFile,
 } from "../services/api";
-import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
 
 const badgeClass = (status) => {
   if (status === "current") return "bg-amber-500/15 text-amber-400 border border-amber-500/25";
@@ -350,16 +349,6 @@ export default function TrackDocument() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 py-8 px-4 md:px-8 transition-colors duration-300">
       <div className="max-w-5xl mx-auto bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-3xl p-6 md:p-8 shadow-xl dark:shadow-none border border-slate-200/80 dark:border-slate-800 flex flex-col space-y-6 transition-all duration-300">
-        <div className="flex justify-between items-center gap-4">
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard")}
-            className="flex items-center gap-2 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition"
-          >
-            ← Back to Dashboard
-          </button>
-        </div>
-
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <span className="w-8 h-8 rounded-lg bg-blue-600/10 text-blue-400 flex items-center justify-center">
@@ -719,6 +708,16 @@ export default function TrackDocument() {
               </section>
             </div>
           )}
+        </div>
+
+        <div className="flex justify-start pt-2">
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            className="flex items-center gap-2 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition duration-200 active:scale-95 shadow-sm"
+          >
+            ← Back to Dashboard
+          </button>
         </div>
       </div>
     </div>

@@ -10,15 +10,11 @@ export default function ThemeToggle({ className = "" }) {
       type="button"
       onClick={toggleTheme}
       title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      className={`fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full border shadow-xl flex items-center justify-center hover:scale-110 transition-transform duration-200 cursor-pointer ${
-        isDark
-          ? "bg-slate-800 border-slate-700 text-amber-400 hover:bg-slate-700 hover:text-amber-300"
-          : "bg-white border-slate-300 text-indigo-600 hover:bg-slate-100 hover:text-indigo-700"
-      } ${className}`}
+      className={`fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer border border-t-[#6b7280]/60 border-r-[#4b5563]/40 border-b-[#1f2937]/80 border-l-[#4b5563]/40 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5),_inset_0_1.5px_1px_rgba(255,255,255,0.15)] bg-gradient-to-b from-[#374151] to-[#111827] text-amber-400 hover:text-amber-300 hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6),_0_0_15px_rgba(245,158,11,0.25)] ${className}`}
     >
       {isDark ? (
         /* Sun Icon */
-        <svg className="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -27,7 +23,7 @@ export default function ThemeToggle({ className = "" }) {
         </svg>
       ) : (
         /* Moon Icon */
-        <svg className="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <svg className="w-5 h-5 shrink-0 text-slate-300 hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path
             strokeLinecap="round"
             strokeLinejoin="round"

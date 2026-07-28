@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getCampusPositions, registerUser } from "../services/api";
 import { useNavigate } from "react-router-dom";
-import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -83,12 +82,8 @@ export default function Register() {
   if (registrationSuccess) {
     return (
       <div
-        className="relative flex justify-center items-center min-h-screen bg-slate-950 bg-cover bg-center bg-no-repeat auth-wallpaper-animate"
-        style={{ backgroundImage: `url(${authWallpaper})` }}
+        className="relative flex justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-950"
       >
-        {/* Dark overlay */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-slate-950/80 via-slate-900/60 to-slate-950/80 backdrop-blur-[2px]"></div>
-        
         {/* Glassmorphic Success Card */}
         <div className="relative z-10 w-full max-w-md p-8 mx-4 bg-slate-900/75 border border-slate-700/40 backdrop-blur-xl shadow-2xl rounded-2xl text-white text-center">
           <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/10">
@@ -135,11 +130,8 @@ export default function Register() {
 
   return (
     <div
-      className="relative flex justify-center items-center min-h-screen bg-slate-950 bg-cover bg-center bg-no-repeat auth-wallpaper-animate"
-      style={{ backgroundImage: `url(${authWallpaper})` }}
+      className="relative flex justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-950"
     >
-      <div className="absolute inset-0 bg-gradient-to-tr from-slate-950/80 via-slate-900/60 to-slate-950/80 backdrop-blur-[2px]"></div>
-
       {/* Glassmorphic Register Card */}
       <div className="relative z-10 w-full max-w-md p-8 mx-4 bg-slate-900/75 border border-slate-700/40 backdrop-blur-xl shadow-2xl rounded-2xl text-white">
         <div className="flex flex-col items-center mb-6">

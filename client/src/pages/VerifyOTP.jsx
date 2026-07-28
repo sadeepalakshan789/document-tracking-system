@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { verifyOTP, resendOTP } from "../services/api";
-import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
 
 export default function VerifyOTP() {
   const [otp, setOtp] = useState("");
@@ -70,10 +69,8 @@ export default function VerifyOTP() {
   if (!email) {
     return (
       <div
-        className="relative flex justify-center items-center min-h-screen bg-slate-950 bg-cover bg-center bg-no-repeat auth-wallpaper-animate"
-        style={{ backgroundImage: `url(${authWallpaper})` }}
+        className="relative flex justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-950"
       >
-        <div className="absolute inset-0 bg-gradient-to-tr from-slate-950/80 via-slate-900/60 to-slate-950/80 backdrop-blur-[2px]"></div>
         <div className="relative z-10 w-full max-w-md p-8 mx-4 bg-slate-900/75 border border-slate-700/40 backdrop-blur-xl shadow-2xl rounded-2xl text-white text-center">
           <div className="w-16 h-16 bg-red-500/20 border border-red-500/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-red-500/10">
             <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -95,11 +92,8 @@ export default function VerifyOTP() {
 
   return (
     <div
-      className="relative flex justify-center items-center min-h-screen bg-slate-950 bg-cover bg-center bg-no-repeat auth-wallpaper-animate"
-      style={{ backgroundImage: `url(${authWallpaper})` }}
+      className="relative flex justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-950"
     >
-      <div className="absolute inset-0 bg-gradient-to-tr from-slate-950/80 via-slate-900/60 to-slate-950/80 backdrop-blur-[2px]"></div>
-
       {/* Glassmorphic Verify Card */}
       <div className="relative z-10 w-full max-w-md p-8 mx-4 bg-slate-900/75 border border-slate-700/40 backdrop-blur-xl shadow-2xl rounded-2xl text-white">
         <div className="flex flex-col items-center mb-6">

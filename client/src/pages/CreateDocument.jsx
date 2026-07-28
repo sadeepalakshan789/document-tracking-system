@@ -1,7 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createDocument, getCurrentUser, getUsers, uploadDocumentFile } from "../services/api";
-import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
+
+const PREDEFINED_OPTIONS = [
+  {
+    label: "Urgent Approval Needed",
+    sentence: "Urgent approval needed for the attached document."
+  },
+  {
+    label: "For Review & Feedback",
+    sentence: "Sent for review and feedback."
+  },
+  {
+    label: "Standard Forwarding",
+    sentence: "Standard forwarding of workflow document."
+  }
+];
 
 export default function CreateDocument() {
   const navigate = useNavigate();
@@ -102,6 +116,25 @@ export default function CreateDocument() {
       copy.splice(nextIndex, 0, moved);
       return copy;
     });
+  };
+
+  const handleOptionToggle = (option) => {
+    const hasSentence = content.includes(option.sentence);
+    if (!hasSentence) {
+      setContent((prev) => {
+        const trimmed = prev.trim();
+        return trimmed ? `${trimmed}\n${option.sentence}` : option.sentence;
+      });
+    } else {
+      setContent((prev) => {
+        const nextContent = prev.replace(option.sentence, "")
+          .split("\n")
+          .map(line => line.trim())
+          .filter(Boolean)
+          .join("\n");
+        return nextContent;
+      });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -223,6 +256,43 @@ export default function CreateDocument() {
                 placeholder="Enter document title..."
                 className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300"
               />
+            </div>
+
+            {/* Pre-defined Options */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Pre-defined Options
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {PREDEFINED_OPTIONS.map((option) => {
+                  const isChecked = content.includes(option.sentence);
+                  return (
+                    <button
+                      key={option.label}
+                      type="button"
+                      onClick={() => handleOptionToggle(option)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium transition-all duration-250 cursor-pointer ${
+                        isChecked
+                          ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                          : "bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700/40 text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-800/80"
+                      }`}
+                    >
+                      <span className={`w-3.5 h-3.5 rounded flex items-center justify-center border transition-all ${
+                        isChecked 
+                          ? "bg-indigo-600 border-indigo-600 text-white" 
+                          : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                      }`}>
+                        {isChecked && (
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      <span>{option.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div>

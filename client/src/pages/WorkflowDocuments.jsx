@@ -10,7 +10,6 @@ import {
   previewDocumentFile,
   uploadDocumentFile,
 } from "../services/api";
-import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
 
 const formatDateTime = (value) => {
   if (!value) return "N/A";

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getMyNotifications, markAllNotificationsRead } from "../services/api";
-import authWallpaper from "../assets/login-register-wallpaper-4k.jpg";
 
 const formatDateTime = (value) => {
   if (!value) return "N/A";
