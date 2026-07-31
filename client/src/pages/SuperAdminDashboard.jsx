@@ -12,6 +12,8 @@ import {
 } from "../services/api";
 import { getUserId } from "../utils/auth";
 import SettingsModal from "../components/SettingsModal";
+import { connectSocket } from "../services/socket";
+import SupportInbox from "../components/SupportInbox";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Helper sub-components
@@ -148,6 +150,19 @@ export default function SuperAdminDashboard() {
   const [currentUser, setCurrentUser] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [toast, setToast] = useState({ show: false, type: "", message: "" });
+  const [activeTab, setActiveTab] = useState("accounts");
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0);
+
+  useEffect(() => {
+    const socket = connectSocket();
+    socket.emit("join_admin_panel");
+    const handleList = (list) => {
+      const totalUnread = (list || []).reduce((acc, sess) => acc + (sess.unreadCount || 0), 0);
+      setUnreadSupportCount(totalUnread);
+    };
+    socket.on("session_list_updated", handleList);
+    return () => socket.off("session_list_updated", handleList);
+  }, []);
 
   const showToast = (type, message) => {
     setToast({ show: true, type, message });
@@ -494,7 +509,37 @@ export default function SuperAdminDashboard() {
           <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Manage admin accounts, user statuses, and access control across the Document Tracking System.</p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-px">
+          <button
+            onClick={() => setActiveTab("accounts")}
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+              activeTab === "accounts"
+                ? "border-indigo-600 text-indigo-600 dark:border-indigo-500 dark:text-indigo-400"
+                : "border-transparent text-slate-550 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+            }`}
+          >
+            Accounts Manager
+          </button>
+          <button
+            onClick={() => setActiveTab("support")}
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
+              activeTab === "support"
+                ? "border-indigo-600 text-indigo-600 dark:border-indigo-500 dark:text-indigo-400"
+                : "border-transparent text-slate-550 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+            }`}
+          >
+            Support Inbox
+            {unreadSupportCount > 0 && (
+              <span className="bg-indigo-600 text-white rounded-full text-[9px] px-1.5 py-0.5 font-bold animate-pulse">
+                {unreadSupportCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === "accounts" && (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             {
               label: "Total Accounts",
@@ -739,7 +784,13 @@ export default function SuperAdminDashboard() {
             </div>
           )}
         </section>
-      </main>
+      </>
+    )}
+
+    {activeTab === "support" && (
+      <SupportInbox currentUser={currentUser} />
+    )}
+  </main>
 
       <ConfirmDialog
         isOpen={confirmDialog.open}

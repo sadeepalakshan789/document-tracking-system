@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ThemeToggle from "../components/ThemeToggle";
+import SupportChatWidget from "../components/SupportChatWidget";
 import {
   deleteDocument,
   downloadDocumentFile,
@@ -788,6 +789,22 @@ export default function Dashboard() {
                   )}
 
                   <button
+                    onClick={() => window.dispatchEvent(new Event("openSupportChat"))}
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/20 group-hover:scale-105 transition-transform">
+                        🎧
+                      </span>
+                      <span>
+                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100">Support / Live Help</span>
+                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">Chat with Super Admin</span>
+                      </span>
+                    </span>
+                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
+                  </button>
+
+                  <button
                     onClick={handleLogout}
                     className="w-full flex items-center justify-between rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-955/20 p-3 text-left hover:bg-red-100 dark:hover:bg-red-950/40 transition-all duration-300 group"
                   >
@@ -1197,6 +1214,7 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+      <SupportChatWidget currentUser={user} />
     </div>
   );
 }

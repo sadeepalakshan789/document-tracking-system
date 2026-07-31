@@ -3,8 +3,11 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const express = require("express");
 const cors = require("cors");
+const http = require("http");
+const { Server } = require("socket.io");
 const connectDB = require("./config/db");
 const { ensureCampusPositions } = require("./config/campusPositions");
+const { initSocketHandler } = require("./utils/socketHandler");
 
 const startServer = async () => {
   await connectDB();
@@ -20,10 +23,21 @@ const startServer = async () => {
   app.use("/api/documents", require("./routes/documentRoutes"));
   app.use("/api/notifications", require("./routes/notificationRoutes"));
   app.use("/api/admin", require("./routes/adminRoutes")); // RBAC admin routes
+  app.use("/api/chat", require("./routes/chatRoutes"));
 
   app.get("/", (req, res) => res.send("API Running"));
 
-  app.listen(process.env.PORT || 5000, () => console.log("Server running"));
+  const httpServer = http.createServer(app);
+  const io = new Server(httpServer, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+  });
+
+  initSocketHandler(io);
+
+  httpServer.listen(process.env.PORT || 5000, () => console.log("Server running with Socket.io"));
 };
 
 startServer();
