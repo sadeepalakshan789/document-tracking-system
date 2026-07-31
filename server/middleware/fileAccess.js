@@ -24,6 +24,12 @@ const authorizeDocumentAccess = (req, res, next) => {
     return res.status(403).json({ message: "You are not authorized to access this document" });
   }
 
+  const isSuperAdmin = req.user?.role?.toLowerCase() === 'superadmin' || req.user?.role?.toLowerCase() === 'super_admin' || req.user?.role?.toLowerCase() === 'super-admin' || req.user?.role?.toLowerCase() === 'admin' || req.user?.isSuperAdmin === true;
+
+  if (isSuperAdmin) {
+    return next();
+  }
+
   const isSender = document.sender?.userId && isSameId(document.sender.userId, req.user.id);
   const isRecipient = document.route?.some((step) => isSameId(step.userId, req.user.id));
 

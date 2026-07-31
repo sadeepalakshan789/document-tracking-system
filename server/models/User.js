@@ -65,6 +65,22 @@ const userSchema = new mongoose.Schema(
     otpExpires: {
       type: Date,
     },
+    avatar: {
+      type: String,
+      default: "",
+    },
+    phone: {
+      type: String,
+      default: "",
+    },
+    emailAlerts: {
+      type: Boolean,
+      default: true,
+    },
+    inAppNotifications: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true, // adds createdAt & updatedAt automatically

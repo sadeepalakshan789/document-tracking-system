@@ -20,6 +20,7 @@ export const resendOTP = (data) => API.post("/auth/resend-otp", data);
 export const getCampusPositions = () => API.get("/auth/positions");
 export const getCurrentUser = () => API.get("/auth/me");
 export const updateCurrentUser = (data) => API.put("/auth/me", data);
+export const updateNotificationPreferences = (data) => API.patch("/auth/me/notifications", data);
 export const getUsers = () => API.get("/auth/users");
 export const getAdminUsers = () => API.get("/admin/users");
 export const getAdminUserById = (id) => API.get(`/admin/users/${id}`);
@@ -29,8 +30,14 @@ export const updateAdminUser = (id, data) => API.put(`/admin/users/${id}`, data)
 export const deleteAdminUser = (id) => API.delete(`/admin/user/${id}`);
 
 export const createDocument = (data) => API.post("/documents/create", data);
-export const getDocument = (id) => API.get(`/documents/${id}`);
+export const getDocument = (id) =>
+  API.get(`/documents/${id}`, {
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
+  });
 export const getMyDocuments = () => API.get("/documents/mine");
+export const getTrackerDocuments = () => API.get("/documents/tracker");
 export const getAllDocuments = () => API.get("/documents/all");
 export const acceptDocument = (id) => API.put(`/documents/${id}/accept`);
 export const forwardDocument = (id, data = {}) => API.put(`/documents/${id}/forward`, data);
@@ -86,6 +93,11 @@ export const adminGetUserActivity = (userId) => API.get(`/admin/users/${userId}/
 export const getAdminSettings = () => API.get("/admin/settings");
 export const updateAdminSettings = (data) => API.put("/admin/settings", data);
 export const getAuditLogs = () => API.get("/admin/audit-logs");
+
+export const uploadAvatar = (formData) =>
+  API.post("/auth/me/avatar", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
 
 export default API;
 

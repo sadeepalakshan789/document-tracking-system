@@ -166,8 +166,20 @@ export default function SettingsModal({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm px-4">
-      <div className="bg-slate-900 border border-slate-700 w-full max-w-5xl h-[85vh] rounded-2xl flex overflow-hidden shadow-2xl animate-fade-in text-white">
+      <div className="relative bg-slate-900 border border-slate-700 w-full max-w-5xl h-[85vh] rounded-2xl flex overflow-hidden shadow-2xl animate-fade-in text-white">
         
+        {/* Subtle Close Icon at Top Right */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+          aria-label="Close"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
         {/* Sidebar Nav */}
         <aside className="w-64 bg-slate-950 border-r border-slate-800 p-5 flex flex-col justify-between shrink-0">
           <div>
@@ -201,13 +213,6 @@ export default function SettingsModal({ isOpen, onClose }) {
               ))}
             </nav>
           </div>
-
-          <button
-            onClick={onClose}
-            className="w-full py-2.5 rounded-xl border border-slate-700 hover:border-slate-500 bg-slate-900 text-slate-300 hover:text-white text-xs font-semibold transition"
-          >
-            Close Settings
-          </button>
         </aside>
 
         {/* Content Area */}
@@ -433,16 +438,16 @@ export default function SettingsModal({ isOpen, onClose }) {
           </div>
 
           {/* Footer Save Controls */}
-          {activeTab !== "logs" && (
-            <div className="mt-8 flex justify-end gap-3 border-t border-slate-800 pt-5">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition"
-                disabled={saving || loadingSettings}
-              >
-                Cancel
-              </button>
+          <div className="mt-8 flex justify-end gap-3 border-t border-slate-800 pt-5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition"
+              disabled={saving || loadingSettings}
+            >
+              Cancel
+            </button>
+            {activeTab !== "logs" && (
               <button
                 type="button"
                 onClick={handleSave}
@@ -461,8 +466,8 @@ export default function SettingsModal({ isOpen, onClose }) {
                   "Save Configurations"
                 )}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </section>
       </div>
     </div>

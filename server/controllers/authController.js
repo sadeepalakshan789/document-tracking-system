@@ -2,6 +2,8 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
+const fs = require("fs");
+const path = require("path");
 const { randomInt } = require("crypto");
 const SibApiV3Sdk = require("sib-api-v3-sdk");
 const CampusPosition = require("../models/CampusPosition");
@@ -324,7 +326,7 @@ const getCampusPositions = async (req, res) => {
 // ─────────────────────────────────────────────
 const getCurrentUser = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("_id name email position role status verified");
+    const user = await User.findById(req.user.id).select("_id name email position role status verified avatar phone emailAlerts inAppNotifications");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -337,6 +339,10 @@ const getCurrentUser = async (req, res) => {
       position: user.position || "",
       role: getEffectiveRole(user),
       verified: user.verified,
+      avatar: user.avatar || "",
+      phone: user.phone || "",
+      emailAlerts: user.emailAlerts !== undefined ? user.emailAlerts : true,
+      inAppNotifications: user.inAppNotifications !== undefined ? user.inAppNotifications : true,
     });
   } catch (error) {
     console.error("getCurrentUser error:", error.message);
@@ -356,6 +362,9 @@ const updateCurrentUser = async (req, res) => {
       currentPassword = "",
       newPassword = "",
       confirmNewPassword = "",
+      phone = "",
+      emailAlerts,
+      inAppNotifications,
     } = req.body;
 
     const trimmedName = name.trim();
@@ -370,15 +379,6 @@ const updateCurrentUser = async (req, res) => {
     const user = await User.findById(req.user.id).select("+password");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
-    }
-
-    const emailInUse = await User.findOne({
-      _id: { $ne: user._id },
-      email: normalizedEmail,
-    }).select("_id");
-
-    if (emailInUse) {
-      return res.status(400).json({ message: "Email is already in use by another account" });
     }
 
     const wantsPasswordChange = !!(currentPassword || newPassword || confirmNewPassword);
@@ -404,9 +404,13 @@ const updateCurrentUser = async (req, res) => {
     }
 
     user.name = trimmedName;
-    user.email = normalizedEmail;
-    user.position = trimmedPosition;
-    user.role = resolveRoleFromPosition(trimmedPosition, user.role || USER_ROLE);
+    user.phone = phone.trim();
+    if (emailAlerts !== undefined) {
+      user.emailAlerts = !!emailAlerts;
+    }
+    if (inAppNotifications !== undefined) {
+      user.inAppNotifications = !!inAppNotifications;
+    }
 
     await user.save();
 
@@ -419,6 +423,10 @@ const updateCurrentUser = async (req, res) => {
       position: user.position || "",
       role: effectiveRole,
       verified: user.verified,
+      avatar: user.avatar || "",
+      phone: user.phone || "",
+      emailAlerts: user.emailAlerts !== undefined ? user.emailAlerts : true,
+      inAppNotifications: user.inAppNotifications !== undefined ? user.inAppNotifications : true,
       message: wantsPasswordChange
         ? "Profile and password updated successfully."
         : "Profile updated successfully.",
@@ -430,12 +438,82 @@ const updateCurrentUser = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────
+//  uploadAvatar
+// ─────────────────────────────────────────────
+const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    const maxSize = 20 * 1024 * 1024; // 20MB
+    const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+    if (!allowedMimeTypes.includes(req.file.mimetype) || req.file.size > maxSize) {
+      // Delete the file from local disk since it's uploaded by multer
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(400).json({ message: "Selected image exceeds the 20MB limit. Please choose a smaller file." });
+    }
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Optionally delete old avatar from disk
+    if (user.avatar) {
+      const oldPath = path.join(__dirname, "..", "uploads", user.avatar);
+      if (fs.existsSync(oldPath)) {
+        try {
+          fs.unlinkSync(oldPath);
+        } catch (err) {
+          console.error("Failed to delete old avatar:", err.message);
+        }
+      }
+    }
+
+    // Save filename to user avatar field
+    user.avatar = req.file.filename;
+    await user.save();
+
+    return res.json({
+      message: "Avatar uploaded successfully",
+      avatar: user.avatar,
+    });
+  } catch (error) {
+    console.error("uploadAvatar error:", error.message);
+    // Cleanup uploaded file on error
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (err) {
+        // ignore
+      }
+    }
+    return res.status(500).json({ message: "Failed to upload avatar" });
+  }
+};
+
+// ─────────────────────────────────────────────
 //  getUsers
-//  Returns all verified users (used by document routing UI etc.)
+//  Returns all active, verified non-super-admin users
+//  for use in document routing / recipient selection UI.
+//  Super-admin accounts are intentionally excluded from workflow paths.
 // ─────────────────────────────────────────────
 const getUsers = async (req, res) => {
   try {
-    const users = await User.find({ verified: true })
+    // Exclude super-admin accounts — only regular users and campus admins
+    // are eligible to be selected as workflow recipients.
+    const users = await User.find({
+      verified: true,
+      status: "active",
+      role: { $nin: ["super-admin"] },
+    })
       .select("_id name email position role")
       .sort({ name: 1 });
 
@@ -457,7 +535,7 @@ const getUsers = async (req, res) => {
 const getUsersForAdmin = async (req, res) => {
   try {
     const users = await User.find({})
-      .select("_id name email position role verified createdAt updatedAt")
+      .select("_id name email position role verified createdAt updatedAt avatar")
       .sort({ createdAt: -1 });
 
     return res.json(
@@ -470,6 +548,7 @@ const getUsersForAdmin = async (req, res) => {
         verified: user.verified,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        avatar: user.avatar || "",
       }))
     );
   } catch (error) {
@@ -838,6 +917,45 @@ const deleteUserByAdmin = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────
+//  updateNotificationPreferences
+// ─────────────────────────────────────────────
+const updateNotificationPreferences = async (req, res) => {
+  try {
+    const { emailAlerts, inAppNotifications } = req.body;
+
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (emailAlerts !== undefined) {
+      user.emailAlerts = !!emailAlerts;
+    }
+    if (inAppNotifications !== undefined) {
+      user.inAppNotifications = !!inAppNotifications;
+    }
+
+    await user.save();
+
+    return res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      position: user.position || "",
+      verified: user.verified,
+      avatar: user.avatar || "",
+      phone: user.phone || "",
+      emailAlerts: user.emailAlerts !== undefined ? user.emailAlerts : true,
+      inAppNotifications: user.inAppNotifications !== undefined ? user.inAppNotifications : true,
+      message: "Notification preferences updated successfully."
+    });
+  } catch (error) {
+    console.error("updateNotificationPreferences error:", error.message);
+    return res.status(500).json({ message: "Failed to update notification preferences" });
+  }
+};
+
 module.exports = {
   registerUser,
   verifyOTP,
@@ -846,6 +964,7 @@ module.exports = {
   getCampusPositions,
   getCurrentUser,
   updateCurrentUser,
+  uploadAvatar,
   getUsers,
   getUsersForAdmin,
   getUserByAdmin,
@@ -853,4 +972,5 @@ module.exports = {
   createUserByAdmin,
   updateUserByAdmin,
   deleteUserByAdmin,
+  updateNotificationPreferences,
 };

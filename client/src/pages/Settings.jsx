@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ThemeToggle from "../components/ThemeToggle";
-import { getCampusPositions, getCurrentUser, updateCurrentUser } from "../services/api";
+import { getCampusPositions, getCurrentUser, updateCurrentUser, updateNotificationPreferences } from "../services/api";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -12,6 +12,9 @@ export default function Settings() {
   const [positions, setPositions] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -19,6 +22,9 @@ export default function Settings() {
     currentPassword: "",
     newPassword: "",
     confirmNewPassword: "",
+    phone: "",
+    emailAlerts: true,
+    inAppNotifications: true,
   });
 
   useEffect(() => {
@@ -44,6 +50,9 @@ export default function Settings() {
           name: userData.name || "",
           email: userData.email || "",
           position: userData.position || "",
+          phone: userData.phone || "",
+          emailAlerts: userData.emailAlerts !== undefined ? userData.emailAlerts : true,
+          inAppNotifications: userData.inAppNotifications !== undefined ? userData.inAppNotifications : true,
         }));
         setPositions(positionsRes.data || []);
       } catch (err) {
@@ -79,10 +88,16 @@ export default function Settings() {
         name: userData.name || "",
         email: userData.email || "",
         position: userData.position || "",
+        phone: userData.phone || "",
+        emailAlerts: userData.emailAlerts !== undefined ? userData.emailAlerts : true,
+        inAppNotifications: userData.inAppNotifications !== undefined ? userData.inAppNotifications : true,
         currentPassword: "",
         newPassword: "",
         confirmNewPassword: "",
       });
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to reset form");
     } finally {
@@ -92,25 +107,47 @@ export default function Settings() {
 
   const handleSave = async () => {
     const trimmedName = form.name.trim();
-    const trimmedEmail = form.email.trim();
-    const selectedPosition = form.position.trim();
 
-    if (!trimmedName || !trimmedEmail || !selectedPosition) {
-      setError("Name, email, and position are required.");
+    if (!trimmedName) {
+      setError("Name is required.");
       setSuccess("");
       return;
     }
 
     const payload = {
       name: trimmedName,
-      email: trimmedEmail,
-      position: selectedPosition,
+      email: form.email,
+      position: form.position,
+      phone: form.phone.trim(),
+      emailAlerts: form.emailAlerts,
+      inAppNotifications: form.inAppNotifications,
     };
 
     const includePasswordChange =
       !!form.currentPassword || !!form.newPassword || !!form.confirmNewPassword;
 
     if (includePasswordChange) {
+      if (!form.currentPassword) {
+        setError("Current password is required to change password.");
+        setSuccess("");
+        return;
+      }
+      if (!form.newPassword) {
+        setError("New password is required to change password.");
+        setSuccess("");
+        return;
+      }
+      if (form.newPassword.length < 6) {
+        setError("New password must be at least 6 characters.");
+        setSuccess("");
+        return;
+      }
+      if (form.newPassword !== form.confirmNewPassword) {
+        setError("New password and confirmation do not match.");
+        setSuccess("");
+        return;
+      }
+
       payload.currentPassword = form.currentPassword;
       payload.newPassword = form.newPassword;
       payload.confirmNewPassword = form.confirmNewPassword;
@@ -132,15 +169,29 @@ export default function Settings() {
         })
       );
 
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          ...(JSON.parse(localStorage.getItem("user") || "{}")),
+          ...updatedUser,
+        })
+      );
+
       setForm((previous) => ({
         ...previous,
         name: updatedUser.name || trimmedName,
-        email: updatedUser.email || trimmedEmail,
-        position: updatedUser.position || selectedPosition,
+        email: updatedUser.email || form.email,
+        position: updatedUser.position || form.position,
+        phone: updatedUser.phone || form.phone,
+        emailAlerts: updatedUser.emailAlerts !== undefined ? updatedUser.emailAlerts : form.emailAlerts,
+        inAppNotifications: updatedUser.inAppNotifications !== undefined ? updatedUser.inAppNotifications : form.inAppNotifications,
         currentPassword: "",
         newPassword: "",
         confirmNewPassword: "",
       }));
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
 
       setSuccess(updatedUser.message || "Profile updated successfully.");
     } catch (err) {
@@ -148,6 +199,45 @@ export default function Settings() {
       setSuccess("");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleToggleNotificationPreference = async (field, currentValue) => {
+    const newValue = !currentValue;
+
+    // 1. Optimistically update UI
+    setForm((prev) => ({ ...prev, [field]: newValue }));
+    setError("");
+    setSuccess("");
+
+    try {
+      // 2. API patch request without form validations
+      const payload = { [field]: newValue };
+      const res = await updateNotificationPreferences(payload);
+      const updatedUser = res.data;
+
+      // 3. Sync local storage keys
+      localStorage.setItem(
+        "currentUser",
+        JSON.stringify({
+          ...(JSON.parse(localStorage.getItem("currentUser") || "{}")),
+          ...updatedUser,
+        })
+      );
+      localStorage.setItem(
+        "user",
+        JSON.stringify({
+          ...(JSON.parse(localStorage.getItem("user") || "{}")),
+          ...updatedUser,
+        })
+      );
+
+      setSuccess("Notification preference updated.");
+    } catch (err) {
+      // 4. Rollback to original value on error
+      setForm((prev) => ({ ...prev, [field]: currentValue }));
+      setError(err.response?.data?.message || "Failed to update preference.");
+      setSuccess("");
     }
   };
 
@@ -228,38 +318,94 @@ export default function Settings() {
           </div>
 
           <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Phone Number / Contact Info</label>
+            <input
+              type="text"
+              name="phone"
+              value={form.phone || ""}
+              onChange={handleChange}
+              placeholder="e.g. +1 555-0199"
+              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300"
+            />
+          </div>
+
+          <div>
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Email Address</label>
             <input
               type="email"
               name="email"
               value={form.email}
-              onChange={handleChange}
-              placeholder="name@organization.com"
-              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300"
+              disabled
+              readOnly
+              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800/80 p-3 rounded-xl text-sm cursor-not-allowed transition-all duration-300 opacity-60"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Campus Position</label>
+            <input
+              type="text"
+              name="position"
+              value={form.position}
+              disabled
+              readOnly
+              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800/80 p-3 rounded-xl text-sm cursor-not-allowed transition-all duration-300 opacity-60"
             />
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Campus Position</label>
-            <select
-              name="position"
-              value={form.position}
-              onChange={handleChange}
-              disabled={positionsLoading}
-              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300 disabled:opacity-60"
-            >
-              <option value="" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                {positionsLoading ? "Loading positions..." : "Select Position"}
-              </option>
-              {!positions.includes(form.position) && form.position && (
-                <option value={form.position} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">{form.position}</option>
-              )}
-              {positions.map((position) => (
-                <option key={position} value={position} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                  {position}
-                </option>
-              ))}
-            </select>
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+              To update your primary email or campus position, please contact the System Administrator.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800 space-y-4">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Notification Preferences</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Customize how you receive updates and alerts.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
+              <div className="pr-4">
+                <span className="block text-sm font-semibold text-slate-900 dark:text-white">Email Alerts</span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">Receive email notifications when a document is assigned or its status changes.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleToggleNotificationPreference("emailAlerts", form.emailAlerts)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  form.emailAlerts ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    form.emailAlerts ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
+              <div className="pr-4">
+                <span className="block text-sm font-semibold text-slate-900 dark:text-white">In-App Notifications</span>
+                <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">Receive real-time system and popup alerts within the app.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleToggleNotificationPreference("inAppNotifications", form.inAppNotifications)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  form.inAppNotifications ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    form.inAppNotifications ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -272,38 +418,80 @@ export default function Settings() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Current Password</label>
-              <input
-                type="password"
-                name="currentPassword"
-                value={form.currentPassword}
-                onChange={handleChange}
-                placeholder="Current account password"
-                className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300"
-              />
+              <div className="relative">
+                <input
+                  type={showCurrentPassword ? "text" : "password"}
+                  name="currentPassword"
+                  value={form.currentPassword}
+                  onChange={handleChange}
+                  placeholder="Current account password"
+                  className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 pr-10 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-slate-400 hover:text-slate-600 transition pointer-events-auto"
+                  tabIndex={-1}
+                >
+                  {showCurrentPassword ? (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div>
               <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">New Password</label>
-              <input
-                type="password"
-                name="newPassword"
-                value={form.newPassword}
-                onChange={handleChange}
-                placeholder="New password string"
-                className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300"
-              />
+              <div className="relative">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  name="newPassword"
+                  value={form.newPassword}
+                  onChange={handleChange}
+                  placeholder="New password string"
+                  className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 pr-10 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-slate-400 hover:text-slate-600 transition pointer-events-auto"
+                  tabIndex={-1}
+                >
+                  {showNewPassword ? (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div>
               <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Confirm New Password</label>
-              <input
-                type="password"
-                name="confirmNewPassword"
-                value={form.confirmNewPassword}
-                onChange={handleChange}
-                placeholder="Repeat new password"
-                className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300"
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmNewPassword"
+                  value={form.confirmNewPassword}
+                  onChange={handleChange}
+                  placeholder="Repeat new password"
+                  className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 pr-10 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-slate-400 hover:text-slate-600 transition pointer-events-auto"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

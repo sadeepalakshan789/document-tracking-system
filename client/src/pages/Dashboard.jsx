@@ -7,6 +7,7 @@ import {
   downloadDocumentVersion,
   getCurrentUser,
   getMyDocuments,
+  getTrackerDocuments,
   getMyNotifications,
   getDocumentVersions,
   previewDocumentFile,
@@ -79,6 +80,7 @@ export default function Dashboard() {
 
   const [user, setUser] = useState(null);
   const [documents, setDocuments] = useState([]);
+  const [trackerDocuments, setTrackerDocuments] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -180,8 +182,8 @@ export default function Dashboard() {
   }, [user?.role]);
 
   const trackedDocument = useMemo(
-    () => documents.find((doc) => doc.trackingId === selectedTrackingId) || null,
-    [documents, selectedTrackingId]
+    () => trackerDocuments.find((doc) => doc.trackingId === selectedTrackingId) || null,
+    [trackerDocuments, selectedTrackingId]
   );
 
   const trackedLocation = useMemo(() => {
@@ -237,16 +239,16 @@ export default function Dashboard() {
         }
         setError("");
 
-        // 💡 Note: The 'getAllDocuments()' API call that conflicted with global settings has been completely removed.
-        // This ensures the normal user's theme remains 100% independent from the Super Admin.
-        const [userRes, docsRes, notificationsRes] = await Promise.all([
+        const [userRes, docsRes, trackerDocsRes, notificationsRes] = await Promise.all([
           getCurrentUser(),
           getMyDocuments(),
+          getTrackerDocuments(),
           getMyNotifications(),
         ]);
 
         setUser(userRes.data);
         setDocuments(docsRes.data || []);
+        setTrackerDocuments(trackerDocsRes.data || []);
         setNotifications(notificationsRes.data || []);
         setLastSyncedAt(new Date());
 
@@ -335,16 +337,16 @@ export default function Dashboard() {
   }, [user?._id]);
 
   useEffect(() => {
-    if (!documents.length) {
+    if (!trackerDocuments.length) {
       setSelectedTrackingId("");
       return;
     }
 
-    const exists = documents.some((doc) => doc.trackingId === selectedTrackingId);
+    const exists = trackerDocuments.some((doc) => doc.trackingId === selectedTrackingId);
     if (!selectedTrackingId || !exists) {
-      setSelectedTrackingId(documents[0].trackingId);
+      setSelectedTrackingId(trackerDocuments[0].trackingId);
     }
-  }, [documents, selectedTrackingId]);
+  }, [trackerDocuments, selectedTrackingId]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -352,6 +354,19 @@ export default function Dashboard() {
     localStorage.removeItem("user");
     window.dispatchEvent(new Event("authChange"));
     navigate("/login");
+  };
+
+  const handleCardClick = (doc, e) => {
+    const interactiveTags = ["BUTTON", "INPUT", "A", "SELECT", "OPTION", "LABEL"];
+    if (
+      interactiveTags.includes(e.target.tagName) ||
+      e.target.closest("button") ||
+      e.target.closest("form") ||
+      e.target.closest("input")
+    ) {
+      return;
+    }
+    navigate(`/track-document/${doc.trackingId}`);
   };
 
   const handlePhotoUpload = (event) => {
@@ -802,7 +817,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {documents.length === 0 ? (
+                {trackerDocuments.length === 0 ? (
                   <p className="text-slate-500 dark:text-slate-400 text-sm mt-4 text-center py-6 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">No documents available to track.</p>
                 ) : (
                   <div className="space-y-4">
@@ -815,7 +830,7 @@ export default function Dashboard() {
                         onChange={(e) => setSelectedTrackingId(e.target.value)}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition"
                       >
-                        {documents.map((doc) => (
+                        {trackerDocuments.map((doc) => (
                           <option key={doc._id} value={doc.trackingId} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                             {doc.trackingId} - {doc.title}
                           </option>
@@ -1034,7 +1049,7 @@ export default function Dashboard() {
                       }
 
                       return (
-                        <div key={doc._id} className="border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-800/60 space-y-3 premium-card">
+                        <div key={doc._id} onClick={(e) => handleCardClick(doc, e)} className="border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-800/60 space-y-3 premium-card cursor-pointer">
                           <div className="flex flex-wrap justify-between gap-3 items-start">
                             <div className="min-w-0">
                               <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{doc.title}</h3>

@@ -88,6 +88,7 @@ export default function TrackDocument() {
 
   useEffect(() => {
     if (trackingIdParam) {
+      setDocumentId(trackingIdParam);
       fetchDocument(trackingIdParam);
     }
   }, [trackingIdParam]);
@@ -306,7 +307,8 @@ export default function TrackDocument() {
     return users.filter((user) => {
       const id = String(user._id);
       const isSender = String(document.sender?.userId) === id;
-      return !isSender && !usedRouteUserIds.has(id);
+      const isSuperAdmin = String(user.role || "").toLowerCase() === "super-admin";
+      return !isSender && !usedRouteUserIds.has(id) && !isSuperAdmin;
     });
   }, [document, users, usedRouteUserIds]);
 
@@ -349,18 +351,29 @@ export default function TrackDocument() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 py-8 px-4 md:px-8 transition-colors duration-300">
       <div className="max-w-5xl mx-auto bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-3xl p-6 md:p-8 shadow-xl dark:shadow-none border border-slate-200/80 dark:border-slate-800 flex flex-col space-y-6 transition-all duration-300">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-blue-600/10 text-blue-400 flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </span>
-            Track Workflow Document
-          </h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs leading-relaxed">
-            Sender and workflow path recipients can track the document status and progression history in real time.
-          </p>
+        <div className="flex justify-between items-start gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-blue-600/10 text-blue-400 flex items-center justify-center">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </span>
+              Track Workflow Document
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs leading-relaxed">
+              Sender and workflow path recipients can track the document status and progression history in real time.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="flex items-center gap-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/80 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition active:scale-95 shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back
+          </button>
         </div>
         {/* Tracking search input */}
         <div className="bg-slate-55 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl p-5 shadow-sm transition-all duration-300 space-y-3">

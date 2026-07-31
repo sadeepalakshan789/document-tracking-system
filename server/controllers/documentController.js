@@ -25,9 +25,15 @@ const dispatchBackgroundEmails = async (notifications) => {
       if (!notif.userId) continue;
 
       // 1. Fetch the target recipient details directly
-      const user = await User.findById(notif.userId).select("name email");
+      const user = await User.findById(notif.userId).select("name email emailAlerts");
       if (!user || !user.email) {
         console.log(`[Email Queue] Skipped: User not found or has no email for ID ${notif.userId}`);
+        continue;
+      }
+
+      // Check recipient preferences
+      if (user.emailAlerts === false) {
+        console.log(`[Email Queue] Skipped: Email alerts disabled by recipient (${user.email})`);
         continue;
       }
 
@@ -52,6 +58,35 @@ const dispatchBackgroundEmails = async (notifications) => {
     }
   } catch (error) {
     console.error("Email dispatch queue error:", error.message);
+  }
+};
+
+// Check In-App Notification preferences before saving
+const createNotifications = async (notifications) => {
+  try {
+    if (!notifications || notifications.length === 0) return [];
+
+    const uniqueUserIds = [...new Set(notifications.map((n) => String(n.userId)))];
+    const users = await User.find({ _id: { $in: uniqueUserIds } }).select("_id inAppNotifications");
+    const prefsMap = new Map(users.map((u) => [String(u._id), u.inAppNotifications !== false]));
+
+    const allowedNotifications = [];
+    for (const notif of notifications) {
+      const allowed = prefsMap.has(String(notif.userId)) ? prefsMap.get(String(notif.userId)) : true;
+      if (allowed) {
+        allowedNotifications.push(notif);
+      } else {
+        console.log(`[Notification] Skipped: In-app alerts disabled by recipient (${notif.userId})`);
+      }
+    }
+
+    if (allowedNotifications.length > 0) {
+      await Notification.insertMany(allowedNotifications);
+    }
+    return allowedNotifications;
+  } catch (error) {
+    console.error("createNotifications error:", error.message);
+    return [];
   }
 };
 
@@ -84,7 +119,8 @@ const buildDocumentResponse = (doc, currentUserId) => {
 };
 
 const canAccessDocument = (doc, userId, role = "") => {
-  if (role === "super-admin" || role === "SUPER_ADMIN") return true;
+  const roleLower = String(role || "").toLowerCase();
+  if (roleLower === "superadmin" || roleLower === "super_admin" || roleLower === "super-admin" || roleLower === "admin") return true;
   const isSender = doc.sender?.userId && isSameId(doc.sender.userId, userId);
   const isInRoute = doc.route.some((step) => isSameId(step.userId, userId));
   return isSender || isInRoute;
@@ -98,7 +134,8 @@ const canAccessFile = (doc, userId) => {
 
 const canPreviewDownloadFile = (doc, userId, userRole = "") => {
   if (!doc || !userId) return false;
-  if (userRole === "admin") return true;
+  const roleLower = String(userRole || "").toLowerCase();
+  if (roleLower === "superadmin" || roleLower === "super_admin" || roleLower === "super-admin" || roleLower === "admin") return true;
   const isSender = doc.sender?.userId && isSameId(doc.sender.userId, userId);
   const isRecipient = doc.route.some((step) => isSameId(step.userId, userId));
   return isSender || isRecipient;
@@ -129,9 +166,17 @@ const createDocument = async (req, res) => {
       return res.status(400).json({ message: "Sender cannot be a recipient in the workflow" });
     }
 
-    const users = await User.find({ _id: { $in: uniqueRouteIds } }).select("_id name email");
+    const users = await User.find({ _id: { $in: uniqueRouteIds } }).select("_id name email role");
     if (users.length !== uniqueRouteIds.length) {
       return res.status(400).json({ message: "One or more selected recipients do not exist" });
+    }
+
+    // Block super-admin accounts from being added to a workflow path
+    const superAdminRecipient = users.find((u) => u.role === "super-admin");
+    if (superAdminRecipient) {
+      return res.status(400).json({
+        message: `Super Admin accounts cannot be added to a document workflow. Please select only regular users or campus officers.`,
+      });
     }
 
     const usersById = new Map(users.map((user) => [String(user._id), user]));
@@ -207,7 +252,7 @@ const createDocument = async (req, res) => {
       message: `You created document ${trackingId} with ${route.length} recipients in sequence.`,
     });
 
-    await Notification.insertMany(notifications);
+    await createNotifications(notifications);
 
     // 🚀 Initiate background email dispatch
     dispatchBackgroundEmails(notifications);
@@ -227,11 +272,18 @@ const getDocument = async (req, res) => {
       return res.status(404).json({ message: "Document not found" });
     }
 
-    if (!canAccessDocument(document, req.user.id)) {
+    console.log("Tracker Access Check User Role:", req.user?.role);
+
+    const isSuperAdmin = req.user?.role?.toLowerCase() === 'superadmin' || req.user?.role?.toLowerCase() === 'super_admin' || req.user?.role?.toLowerCase() === 'super-admin' || req.user?.role?.toLowerCase() === 'admin' || req.user?.isSuperAdmin === true;
+    const isSender = document.sender?.userId && isSameId(document.sender.userId, req.user.id);
+    const isReceiver = document.route?.some((step) => isSameId(step.userId, req.user.id));
+    const isHolder = document.currentHolder?.userId && isSameId(document.currentHolder.userId, req.user.id);
+
+    if (isSuperAdmin || isSender || isReceiver || isHolder) {
+      return res.json(buildDocumentResponse(document, req.user.id));
+    } else {
       return res.status(403).json({ message: "You are not allowed to access this document" });
     }
-
-    return res.json(buildDocumentResponse(document, req.user.id));
   } catch (error) {
     console.error("getDocument error:", error.message);
     return res.status(500).json({ message: "Failed to fetch document" });
@@ -277,7 +329,7 @@ const acceptDocument = async (req, res) => {
       return res.status(404).json({ message: "Document not found" });
     }
 
-    if (!canAccessDocument(document, req.user.id)) {
+    if (!canAccessDocument(document, req.user.id, req.user.role)) {
       return res.status(403).json({ message: "You are not allowed to access this document" });
     }
 
@@ -321,7 +373,7 @@ const acceptDocument = async (req, res) => {
       },
     ];
 
-    await Notification.insertMany(newNotifs);
+    await createNotifications(newNotifs);
 
     // 🚀 Background email dispatch
     dispatchBackgroundEmails(newNotifs);
@@ -342,7 +394,7 @@ const forwardDocument = async (req, res) => {
       return res.status(404).json({ message: "Document not found" });
     }
 
-    if (!canAccessDocument(document, req.user.id)) {
+    if (!canAccessDocument(document, req.user.id, req.user.role)) {
       return res.status(403).json({ message: "You are not allowed to access this document" });
     }
 
@@ -458,7 +510,7 @@ const forwardDocument = async (req, res) => {
       });
     }
 
-    await Notification.insertMany(newNotifs);
+    await createNotifications(newNotifs);
     await document.save();
 
     // 🚀 Background email dispatch
@@ -489,7 +541,7 @@ const rerouteDocument = async (req, res) => {
       return res.status(404).json({ message: "Document not found" });
     }
 
-    if (!canAccessDocument(document, req.user.id)) {
+    if (!canAccessDocument(document, req.user.id, req.user.role)) {
       return res.status(403).json({ message: "You are not allowed to access this document" });
     }
 
@@ -509,9 +561,16 @@ const rerouteDocument = async (req, res) => {
       return res.status(400).json({ message: "Selected user is already in remaining workflow" });
     }
 
-    const userToInsert = await User.findById(insertUserId).select("_id name email");
+    const userToInsert = await User.findById(insertUserId).select("_id name email role");
     if (!userToInsert) {
       return res.status(404).json({ message: "User to insert was not found" });
+    }
+
+    // Block super-admin accounts from being inserted into a workflow path
+    if (userToInsert.role === "super-admin") {
+      return res.status(400).json({
+        message: "Super Admin accounts cannot be added to a document workflow.",
+      });
     }
 
     const defaultInsertIndex = document.currentHolderIndex + 1;
@@ -572,7 +631,7 @@ const rerouteDocument = async (req, res) => {
       },
     ];
 
-    await Notification.insertMany(newNotifs);
+    await createNotifications(newNotifs);
 
     // 🚀 Background email dispatch
     dispatchBackgroundEmails(newNotifs);
@@ -586,6 +645,36 @@ const rerouteDocument = async (req, res) => {
 
 const updateDocumentStatus = async (req, res) => {
   return forwardDocument(req, res);
+};
+
+const getTrackerDocuments = async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.user.id).select("position");
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const department = currentUser.position || "";
+
+    let departmentUserIds = [];
+    if (department) {
+      const usersInDept = await User.find({ position: department }).select("_id");
+      departmentUserIds = usersInDept.map((u) => u._id);
+    }
+
+    const documents = await Document.find({
+      $or: [
+        { "currentHolder.userId": req.user.id },
+        { "sender.userId": req.user.id },
+        { "currentHolder.userId": { $in: departmentUserIds } },
+      ],
+    }).sort({ updatedAt: -1 });
+
+    return res.json(documents.map((doc) => buildDocumentResponse(doc, req.user.id)));
+  } catch (error) {
+    console.error("getTrackerDocuments error:", error.message);
+    return res.status(500).json({ message: "Failed to fetch tracker documents" });
+  }
 };
 
 const getAllDocuments = async (req, res) => {
@@ -612,7 +701,7 @@ const uploadDocumentFile = async (req, res) => {
       return res.status(404).json({ message: "Document not found" });
     }
 
-    if (!canAccessDocument(document, req.user.id)) {
+    if (!canAccessDocument(document, req.user.id, req.user.role)) {
       return res.status(403).json({ message: "You are not allowed to manage this document" });
     }
 
@@ -833,7 +922,7 @@ const deleteDocument = async (req, res) => {
       return res.status(404).json({ message: "Document not found" });
     }
 
-    if (!canAccessDocument(document, req.user.id)) {
+    if (!canAccessDocument(document, req.user.id, req.user.role)) {
       return res.status(403).json({ message: "You are not allowed to delete this document" });
     }
 
@@ -865,4 +954,5 @@ module.exports = {
   getDocumentVersions,
   downloadDocumentVersion,
   deleteDocument,
+  getTrackerDocuments,
 };

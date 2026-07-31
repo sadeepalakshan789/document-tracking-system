@@ -63,7 +63,12 @@ export default function CreateDocument() {
   }, [users, workflowUsers]);
 
   const recipientOptions = useMemo(() => {
-    const filtered = availableUsers.filter((user) => String(user._id) !== String(currentUser?._id));
+    // Exclude the current user and super-admin accounts from the pick list
+    const filtered = availableUsers.filter(
+      (user) =>
+        String(user._id) !== String(currentUser?._id) &&
+        String(user.role || "").toLowerCase() !== "super-admin"
+    );
     if (!recipientSearch.trim()) {
       return filtered;
     }

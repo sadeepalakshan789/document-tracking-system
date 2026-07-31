@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   adminGetAllUsers,
@@ -7,6 +7,8 @@ import {
   adminToggleStatus,
   adminDeleteUser,
   getCampusPositions,
+  getCurrentUser,
+  uploadAvatar,
 } from "../services/api";
 import { getUserId } from "../utils/auth";
 import SettingsModal from "../components/SettingsModal";
@@ -77,6 +79,11 @@ function StatusBadge({ status }) {
   );
 }
 
+const formatRole = (role) => {
+  if (!role) return "Super Admin";
+  return role.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+};
+
 /** Full-screen confirmation dialog */
 function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, danger = true }) {
   if (!isOpen) return null;
@@ -134,8 +141,86 @@ function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, danger = t
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function SuperAdminDashboard() {
-  const navigate = useNavigate();
   const currentUserId = getUserId();
+  const navigate = useNavigate();
+
+  const fileInputRef = useRef(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [toast, setToast] = useState({ show: false, type: "", message: "" });
+
+  const showToast = (type, message) => {
+    setToast({ show: true, type, message });
+    setTimeout(() => {
+      setToast({ show: false, type: "", message: "" });
+    }, 5000);
+  };
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await getCurrentUser();
+        setCurrentUser(res.data);
+        localStorage.setItem("user", JSON.stringify(res.data));
+        localStorage.setItem("currentUser", JSON.stringify(res.data));
+      } catch (err) {
+        console.error("Failed to fetch profile", err);
+        const stored = localStorage.getItem("user") || localStorage.getItem("currentUser");
+        if (stored) {
+          setCurrentUser(JSON.parse(stored));
+        }
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const getInitials = (name) => {
+    if (!name) return "?";
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate size and format
+    const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const maxSize = 20 * 1024 * 1024; // 20MB
+
+    if (!allowedMimeTypes.includes(file.type) || file.size > maxSize) {
+      showToast("error", "Selected image exceeds the 20MB limit. Please choose a smaller file.");
+      e.target.value = "";
+      return;
+    }
+
+    // Instantly preview the image
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewUrl(reader.result);
+    };
+    reader.readAsDataURL(file);
+
+    // Trigger API upload request
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      const res = await uploadAvatar(formData);
+      const updatedUser = { ...currentUser, avatar: res.data.avatar };
+      setCurrentUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+      showToast("success", "Profile picture updated successfully!");
+    } catch (err) {
+      const errMsg = err.response?.data?.message || "Failed to upload avatar.";
+      showToast("error", errMsg);
+      setPreviewUrl(null);
+    }
+  };
 
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -323,14 +408,53 @@ export default function SuperAdminDashboard() {
       <header className="sticky top-0 z-30 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-b border-indigo-500/30 text-white shadow-md py-3 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto flex items-center justify-between h-12">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-lg flex items-center justify-center text-white ring-2 ring-indigo-400/30">
-              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M9.661 2.237a.531.531 0 01.678 0 11.947 11.947 0 007.078 2.749.5.5 0 01.479.425c.069.52.104 1.05.104 1.589 0 5.162-3.26 9.563-7.834 11.256a.48.48 0 01-.332 0C5.26 16.563 2 12.162 2 7c0-.538.035-1.069.104-1.589a.5.5 0 01.48-.425 11.947 11.947 0 007.077-2.749z" clipRule="evenodd" />
-              </svg>
+            {/* Interactive Profile Avatar */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="relative group cursor-pointer w-10 h-10 rounded-full overflow-hidden ring-2 ring-indigo-400/30 hover:ring-indigo-400 hover:scale-105 transition-all duration-300 flex items-center justify-center bg-slate-800 shrink-0"
+            >
+              {previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt="Profile Avatar Preview"
+                  className="w-full h-full object-cover animate-fade-in"
+                />
+              ) : currentUser?.avatar ? (
+                <img
+                  src={
+                    currentUser.avatar.startsWith("data:") 
+                      ? currentUser.avatar 
+                      : `http://localhost:5000/uploads/${currentUser.avatar}`
+                  }
+                  alt="Profile Avatar"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-white font-bold text-sm">
+                  {getInitials(currentUser?.name || "Super Admin")}
+                </div>
+              )}
+              {/* Overlay on hover to signal upload */}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+              </div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+              />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-white leading-tight">Super Admin</h1>
-              <p className="text-xs text-indigo-200 leading-tight">Control Panel</p>
+              <h1 className="text-sm font-bold text-white leading-tight">
+                {currentUser?.name || "Super Admin"}
+              </h1>
+              <p className="text-xs text-indigo-200 leading-tight">
+                {currentUser?.role ? formatRole(currentUser.role) : "Super Admin"}
+              </p>
             </div>
           </div>
 
@@ -372,14 +496,63 @@ export default function SuperAdminDashboard() {
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { label: "Total Accounts", value: stats.total, color: "text-indigo-600 dark:text-indigo-400" },
-            { label: "Super-Admins", value: stats.admins, color: "text-violet-600 dark:text-violet-400" },
-            { label: "Regular Users", value: stats.regularUsers, color: "text-emerald-600 dark:text-emerald-400" },
-            { label: "Blocked", value: stats.blocked, color: "text-rose-600 dark:text-rose-400" },
+            {
+              label: "Total Accounts",
+              value: stats.total,
+              color: "text-indigo-600 dark:text-indigo-400",
+              accent: "border-l-4 border-indigo-500",
+              bgColor: "bg-indigo-50 dark:bg-indigo-950/20",
+              icon: (
+                <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              ),
+            },
+            {
+              label: "Super-Admins",
+              value: stats.admins,
+              color: "text-violet-600 dark:text-violet-400",
+              accent: "border-l-4 border-violet-500",
+              bgColor: "bg-violet-50 dark:bg-violet-950/20",
+              icon: (
+                <svg className="w-5 h-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              ),
+            },
+            {
+              label: "Regular Users",
+              value: stats.regularUsers,
+              color: "text-emerald-600 dark:text-emerald-400",
+              accent: "border-l-4 border-emerald-500",
+              bgColor: "bg-emerald-50 dark:bg-emerald-950/20",
+              icon: (
+                <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              ),
+            },
+            {
+              label: "Blocked",
+              value: stats.blocked,
+              color: "text-rose-600 dark:text-rose-400",
+              accent: "border-l-4 border-rose-500",
+              bgColor: "bg-rose-50 dark:bg-rose-950/20",
+              icon: (
+                <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              ),
+            },
           ].map((s) => (
-            <div key={s.label} className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col gap-1">
-              <span className={`text-2xl font-black ${s.color}`}>{s.value}</span>
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">{s.label}</span>
+            <div key={s.label} className={`bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex items-center justify-between ${s.accent}`}>
+              <div className="flex flex-col gap-1">
+                <span className={`text-2xl font-black ${s.color}`}>{s.value}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold tracking-wide uppercase">{s.label}</span>
+              </div>
+              <div className={`p-2 rounded-lg ${s.bgColor} shrink-0`}>
+                {s.icon}
+              </div>
             </div>
           ))}
         </div>
@@ -400,7 +573,7 @@ export default function SuperAdminDashboard() {
           <Alert type={formAlert.type} message={formAlert.message} onClose={() => setFormAlert({ type: "", message: "" })} />
 
           <form onSubmit={handleCreateUser} noValidate>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="flex flex-col">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Full Name <span className="text-rose-500">*</span></label>
                 <input type="text" placeholder="e.g. Saman Perera" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
@@ -415,18 +588,16 @@ export default function SuperAdminDashboard() {
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Password <span className="text-rose-500">*</span></label>
                 <div className="relative">
                   <input type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Min 6 characters" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 pr-10 text-sm focus:outline-none transition" disabled={formLoading} />
-                  <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition" tabIndex={-1}>
+                  <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-slate-400 hover:text-slate-600 transition pointer-events-auto" tabIndex={-1}>
                     {showPassword ? (
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                     ) : (
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
                     )}
                   </button>
                 </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
               <div className="flex flex-col">
                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Position <span className="text-rose-500">*</span></label>
                 <select value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading || loadingPositions}>
@@ -445,12 +616,12 @@ export default function SuperAdminDashboard() {
                   <option value="SUPER_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Super Admin</option>
                 </select>
               </div>
-            </div>
 
-            <div className="mt-4 flex justify-end">
-              <button type="submit" disabled={formLoading} className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-medium shadow-md shadow-indigo-500/20 rounded-xl px-5 py-2.5 active:scale-95 disabled:opacity-60 text-sm transition-all">
-                {formLoading ? "Creating…" : "Create User / Admin"}
-              </button>
+              <div className="flex flex-col justify-end">
+                <button type="submit" disabled={formLoading} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold shadow-md shadow-indigo-500/20 rounded-lg py-2.5 px-5 active:scale-95 disabled:opacity-60 text-sm transition-all h-[42px] border border-transparent">
+                  {formLoading ? "Creating…" : "Create User / Admin"}
+                </button>
+              </div>
             </div>
           </form>
         </section>
@@ -583,6 +754,16 @@ export default function SuperAdminDashboard() {
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
       />
+
+      {toast.show && (
+        <div className="fixed top-5 right-5 z-50 w-80 shadow-2xl transition-all duration-300 animate-fade-in">
+          <Alert
+            type={toast.type}
+            message={toast.message}
+            onClose={() => setToast({ show: false, type: "", message: "" })}
+          />
+        </div>
+      )}
     </div>
   );
 }
