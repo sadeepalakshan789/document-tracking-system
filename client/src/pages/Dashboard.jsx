@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import ThemeToggle from "../components/ThemeToggle";
 import SupportChatWidget from "../components/SupportChatWidget";
+import UserGuideModal from "../components/UserGuideModal";
 import {
   deleteDocument,
   downloadDocumentFile,
@@ -69,6 +70,66 @@ const isWorkflowComplete = (doc) => {
   return doc.status === "Completed" && doc.route.every((step) => step.status === "completed");
 };
 
+const matchDocumentGlobal = (doc, query) => {
+  if (!query) return true;
+  const q = query.toLowerCase().trim();
+
+  // 1. Document ID / Tracking ID
+  const trackingId = String(doc.trackingId || "").toLowerCase();
+  if (trackingId.includes(q)) return true;
+
+  // 2. Title
+  const title = String(doc.title || "").toLowerCase();
+  if (title.includes(q)) return true;
+
+  // 3. Status
+  const status = String(doc.status || "").toLowerCase();
+  if (status.includes(q)) return true;
+
+  // 4. Sender Name / Email
+  const senderName = String(doc.sender?.name || "").toLowerCase();
+  const senderEmail = String(doc.sender?.email || "").toLowerCase();
+  if (senderName.includes(q) || senderEmail.includes(q)) return true;
+
+  // 5. Recipient names / emails and step statuses / dates / step numbers
+  const steps = doc.route || [];
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const stepNum = i + 1;
+
+    // Step numbers: e.g., "step 1", "1", "2"
+    if (`step ${stepNum}`.includes(q) || String(stepNum) === q) return true;
+
+    // Recipient name / email
+    const recName = String(step.name || "").toLowerCase();
+    const recEmail = String(step.email || "").toLowerCase();
+    if (recName.includes(q) || recEmail.includes(q)) return true;
+
+    // Step status
+    const stepStatus = String(step.status || "").toLowerCase();
+    if (stepStatus.includes(q)) return true;
+
+    // Step dates
+    if (step.acceptedAt && formatDateTime(step.acceptedAt).toLowerCase().includes(q)) return true;
+    if (step.completedAt && formatDateTime(step.completedAt).toLowerCase().includes(q)) return true;
+    if (step.notifiedAt && formatDateTime(step.notifiedAt).toLowerCase().includes(q)) return true;
+    if (step.receivedAt && formatDateTime(step.receivedAt).toLowerCase().includes(q)) return true;
+  }
+
+  // 6. Current Holder Name / Email
+  const holderName = String(doc.currentHolder?.name || "").toLowerCase();
+  const holderEmail = String(doc.currentHolder?.email || "").toLowerCase();
+  if (holderName.includes(q) || holderEmail.includes(q)) return true;
+
+  // 7. Dates (Created / Updated)
+  if (doc.createdAt && formatDateTime(doc.createdAt).toLowerCase().includes(q)) return true;
+  if (doc.updatedAt && formatDateTime(doc.updatedAt).toLowerCase().includes(q)) return true;
+  if (doc.createdAt && String(doc.createdAt).toLowerCase().includes(q)) return true;
+  if (doc.updatedAt && String(doc.updatedAt).toLowerCase().includes(q)) return true;
+
+  return false;
+};
+
 const statusToneClass = (tone) => {
   if (tone === "success") return "text-emerald-700";
   if (tone === "warning") return "text-yellow-700";
@@ -95,6 +156,7 @@ export default function Dashboard() {
   const [uploadingDocumentId, setUploadingDocumentId] = useState("");
   const [actionDocumentId, setActionDocumentId] = useState("");
   const [versionHistoryByDoc, setVersionHistoryByDoc] = useState({});
+  const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
 
   const unreadCount = useMemo(
     () => notifications.filter((notification) => !notification.isRead).length,
@@ -134,36 +196,32 @@ export default function Dashboard() {
     return baseDocuments;
   }, [activeCardFilter, documents, needsMyAction, unreadRelatedDocuments]);
 
-  const searchResults = useMemo(() => {
-    const normalizedSearch = documentSearch.trim().toLowerCase();
-    if (!normalizedSearch) return null;
-
-    return documents.filter((doc) => {
-      const title = String(doc.title || "").toLowerCase();
-      const trackingId = String(doc.trackingId || "").toLowerCase();
-      const senderName = String(doc.sender?.name || "").toLowerCase();
-      const currentHolder = String(doc.currentHolder?.name || "").toLowerCase();
-      const status = String(doc.status || "").toLowerCase();
-      const routeSummaryText = String(routeSummary(doc)).toLowerCase();
-      const updatedDate = formatDateTime(doc.updatedAt).toLowerCase();
-      const createdDate = formatDateTime(doc.createdAt).toLowerCase();
-      const isoUpdated = String(doc.updatedAt || "").toLowerCase();
-      const isoCreated = String(doc.createdAt || "").toLowerCase();
-
-      return (
-        title.includes(normalizedSearch) ||
-        trackingId.includes(normalizedSearch) ||
-        senderName.includes(normalizedSearch) ||
-        currentHolder.includes(normalizedSearch) ||
-        status.includes(normalizedSearch) ||
-        routeSummaryText.includes(normalizedSearch) ||
-        updatedDate.includes(normalizedSearch) ||
-        createdDate.includes(normalizedSearch) ||
-        isoUpdated.includes(normalizedSearch) ||
-        isoCreated.includes(normalizedSearch)
-      );
+  const allAccessibleDocuments = useMemo(() => {
+    const uniqueDocs = new Map();
+    documents.forEach((doc) => {
+      if (doc && doc.trackingId) {
+        uniqueDocs.set(doc.trackingId, doc);
+      }
     });
-  }, [documentSearch, documents]);
+    trackerDocuments.forEach((doc) => {
+      if (doc && doc.trackingId) {
+        uniqueDocs.set(doc.trackingId, doc);
+      }
+    });
+    return Array.from(uniqueDocs.values());
+  }, [documents, trackerDocuments]);
+
+  const searchResults = useMemo(() => {
+    const query = documentSearch.trim();
+    if (!query) return null;
+    return allAccessibleDocuments.filter((doc) => matchDocumentGlobal(doc, query));
+  }, [documentSearch, allAccessibleDocuments]);
+
+  const filteredTrackerDocuments = useMemo(() => {
+    const query = documentSearch.trim();
+    if (!query) return trackerDocuments;
+    return trackerDocuments.filter((doc) => matchDocumentGlobal(doc, query));
+  }, [documentSearch, trackerDocuments]);
 
   const displayedDocuments = useMemo(() => {
     return searchResults !== null ? searchResults : filteredDocuments;
@@ -379,17 +437,49 @@ export default function Dashboard() {
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Image must be 2MB or smaller.");
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Image must be 10MB or smaller.");
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
-      const imageData = String(reader.result || "");
-      setProfilePhoto(imageData);
-      localStorage.setItem(getPhotoStorageKey(user._id), imageData);
-      setError("");
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        const maxDimension = 500;
+
+        if (width > height) {
+          if (width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        setProfilePhoto(compressedDataUrl);
+
+        try {
+          localStorage.setItem(getPhotoStorageKey(user._id), compressedDataUrl);
+          setError("");
+        } catch (storageError) {
+          console.error("Local storage photo write failed:", storageError);
+          setError("Failed to save image to browser storage (quota exceeded).");
+        }
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   };
@@ -533,10 +623,14 @@ export default function Dashboard() {
       <header className="bg-gradient-to-r from-slate-900 via-indigo-955 to-slate-900 text-white py-3 px-6 md:px-8 shadow-lg w-full border-b border-indigo-500/30 sticky top-0 z-50">
         <div className="w-full max-w-[1550px] mx-auto flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           {/* Far Left: Logo / Dashboard Title */}
-          <div className="flex items-center">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white whitespace-nowrap">
               Document Workflow Dashboard
             </h1>
+            <span className="bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 text-xs font-semibold px-2.5 py-0.5 rounded-full tracking-wide whitespace-nowrap flex items-center gap-1.5 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              by CodeBloom
+            </span>
           </div>
 
           {/* Center: Search input field */}
@@ -560,7 +654,7 @@ export default function Dashboard() {
                 type="search"
                 value={documentSearch}
                 onChange={(e) => setDocumentSearch(e.target.value)}
-                placeholder="Search documents by title, tracking ID, sender, holder, status..."
+                placeholder="Search Documents . . . . . ."
                 className="w-full rounded-full border border-indigo-500/30 bg-slate-800/80 py-2.5 pl-12 pr-4 text-sm text-white placeholder-slate-400 shadow-sm transition-all duration-300 focus:bg-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
             </div>
@@ -605,7 +699,7 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
-      <main className="max-w-[1550px] mx-auto p-6 space-y-6">
+      <main className="max-w-[1550px] mx-auto p-6 pb-36 space-y-6">
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 text-red-200 px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2.5">
             <svg className="w-5 h-5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -677,9 +771,12 @@ export default function Dashboard() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => navigate(`/track-document/${doc.trackingId}`)}
-                            className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-all"
+                            className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.03] active:scale-95 transition-all duration-200 inline-flex items-center gap-2 border border-indigo-400/30 cursor-pointer"
                           >
-                            Open Workflow
+                            <svg className="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>View Timeline</span>
                           </button>
                         </div>
                       </div>
@@ -789,16 +886,16 @@ export default function Dashboard() {
                   )}
 
                   <button
-                    onClick={() => window.dispatchEvent(new Event("openSupportChat"))}
+                    onClick={() => setIsGuideModalOpen(true)}
                     className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group"
                   >
                     <span className="flex items-center gap-3">
-                      <span className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/20 group-hover:scale-105 transition-transform">
-                        🎧
+                      <span className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/20 group-hover:scale-105 transition-transform">
+                        📖
                       </span>
                       <span>
-                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100">Support / Live Help</span>
-                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">Chat with Super Admin</span>
+                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100">Help &amp; User Guide</span>
+                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">App usage guidelines &amp; FAQs</span>
                       </span>
                     </span>
                     <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
@@ -834,8 +931,10 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {trackerDocuments.length === 0 ? (
-                  <p className="text-slate-500 dark:text-slate-400 text-sm mt-4 text-center py-6 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">No documents available to track.</p>
+                {filteredTrackerDocuments.length === 0 ? (
+                  <p className="text-slate-500 dark:text-slate-400 text-sm mt-4 text-center py-6 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                    {documentSearch.trim() ? "No matching documents found." : "No documents available to track."}
+                  </p>
                 ) : (
                   <div className="space-y-4">
                     <div>
@@ -847,7 +946,7 @@ export default function Dashboard() {
                         onChange={(e) => setSelectedTrackingId(e.target.value)}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 transition"
                       >
-                        {trackerDocuments.map((doc) => (
+                        {filteredTrackerDocuments.map((doc) => (
                           <option key={doc._id} value={doc.trackingId} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
                             {doc.trackingId} - {doc.title}
                           </option>
@@ -874,16 +973,16 @@ export default function Dashboard() {
 
                         {/* Interactive Timeline Stepper */}
                         <div className="relative pt-6 pb-2 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 bg-slate-50 dark:bg-slate-800/60 shadow-sm transition-all duration-300">
-                          {trackedDocument.route?.length > 1 && (
-                            <div className="absolute left-[3.25rem] right-14 top-[56px] h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
-                                style={{ width: `${connectorProgressPercent(trackedDocument.route)}%` }}
-                              ></div>
-                            </div>
-                          )}
-
                           <div className="relative flex gap-6 overflow-x-auto pb-4 scrollbar-thin">
+                            {trackedDocument.route?.length > 1 && (
+                              <div className="absolute left-12 right-12 top-[24px] -translate-y-1/2 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden pointer-events-none">
+                                <div
+                                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                                  style={{ width: `${connectorProgressPercent(trackedDocument.route)}%` }}
+                                ></div>
+                              </div>
+                            )}
+
                             {trackedDocument.route?.map((step, index) => {
                               const isCompleted = step.status === "completed";
                               const isCurrent = step.status === "current";
@@ -904,9 +1003,9 @@ export default function Dashboard() {
                               }
 
                               return (
-                                <div key={`${step.userId}-${index}`} className="min-w-[96px] text-center shrink-0">
+                                <div key={`${step.userId}-${index}`} className="min-w-[96px] text-center shrink-0 z-10">
                                   <div
-                                    className={`w-12 h-12 mx-auto rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${circleColor} ${pulse}`}
+                                    className={`w-12 h-12 mx-auto rounded-full flex items-center justify-center text-sm font-bold leading-none transition-all duration-300 ${circleColor} ${pulse}`}
                                     title={stepStatusLabel(step)}
                                   >
                                     {index + 1}
@@ -1113,7 +1212,7 @@ export default function Dashboard() {
                                     onChange={(event) =>
                                       setSelectedFiles((prev) => ({ ...prev, [doc.trackingId]: event.target.files?.[0] || null }))
                                     }
-                                    className="block w-full max-w-[200px] text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 file:transition file:cursor-pointer"
+                                    className="block w-full max-w-[200px] text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 dark:file:bg-indigo-600 dark:file:text-white dark:hover:file:bg-indigo-500 file:cursor-pointer file:transition duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                                   />
                                   <button
                                     type="submit"
@@ -1161,9 +1260,12 @@ export default function Dashboard() {
                               )}
                               <button
                                 onClick={() => navigate(`/track-document/${doc.trackingId}`)}
-                                className="border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 ml-auto shrink-0"
+                                className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.03] active:scale-95 transition-all duration-200 inline-flex items-center gap-2 border border-indigo-400/30 cursor-pointer ml-auto shrink-0"
                               >
-                                View Timeline
+                                <svg className="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>View Timeline</span>
                               </button>
                             </div>
 
@@ -1215,6 +1317,7 @@ export default function Dashboard() {
         )}
       </main>
       <SupportChatWidget currentUser={user} />
+      <UserGuideModal isOpen={isGuideModalOpen} onClose={() => setIsGuideModalOpen(false)} />
     </div>
   );
 }

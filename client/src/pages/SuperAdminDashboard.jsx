@@ -204,10 +204,10 @@ export default function SuperAdminDashboard() {
 
     // Validate size and format
     const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    const maxSize = 20 * 1024 * 1024; // 20MB
+    const maxSize = 10 * 1024 * 1024; // 10MB
 
     if (!allowedMimeTypes.includes(file.type) || file.size > maxSize) {
-      showToast("error", "Selected image exceeds the 20MB limit. Please choose a smaller file.");
+      showToast("error", "Selected image exceeds the 10MB limit. Please choose a smaller file.");
       e.target.value = "";
       return;
     }
@@ -227,8 +227,12 @@ export default function SuperAdminDashboard() {
       const res = await uploadAvatar(formData);
       const updatedUser = { ...currentUser, avatar: res.data.avatar };
       setCurrentUser(updatedUser);
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-      localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+      try {
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+      } catch (storageError) {
+        console.error("Local storage update failed:", storageError);
+      }
       showToast("success", "Profile picture updated successfully!");
     } catch (err) {
       const errMsg = err.response?.data?.message || "Failed to upload avatar.";

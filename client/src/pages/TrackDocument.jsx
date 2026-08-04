@@ -349,7 +349,7 @@ export default function TrackDocument() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 py-8 px-4 md:px-8 transition-colors duration-300">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 pt-8 pb-36 px-4 md:px-8 transition-colors duration-300">
       <div className="max-w-5xl mx-auto bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-3xl p-6 md:p-8 shadow-xl dark:shadow-none border border-slate-200/80 dark:border-slate-800 flex flex-col space-y-6 transition-all duration-300">
         <div className="flex justify-between items-start gap-4">
           <div>
@@ -444,7 +444,7 @@ export default function TrackDocument() {
                     <input
                       type="file"
                       onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                      className="flex-1 w-full text-xs text-slate-505 dark:text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-500/10 file:text-indigo-455 hover:file:bg-indigo-500/20 file:transition file:cursor-pointer"
+                      className="flex-1 w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 dark:file:bg-indigo-600 dark:file:text-white dark:hover:file:bg-indigo-500 file:cursor-pointer file:transition duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                     />
                     <button
                       type="submit"

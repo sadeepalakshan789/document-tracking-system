@@ -200,7 +200,7 @@ export default function WorkflowDocuments() {
   }
 
   return (
-    <div className="min-h-screen theme-bg-primary text-[var(--text-main)] py-8 px-4 md:px-8 transition-colors duration-200">
+    <div className="min-h-screen theme-bg-primary text-[var(--text-main)] pt-8 pb-36 px-4 md:px-8 transition-colors duration-200">
       <div className="max-w-6xl mx-auto theme-card rounded-3xl p-6 md:p-8 shadow-xl border theme-border flex flex-col space-y-6">
         <div className="flex flex-wrap justify-between items-center gap-4 border-b theme-border pb-4">
           <div className="flex items-center gap-3">
@@ -304,9 +304,12 @@ export default function WorkflowDocuments() {
                       <button
                         type="button"
                         onClick={() => navigate(`/track-document/${doc.trackingId}`)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm"
+                        className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold px-3.5 py-1.5 rounded-xl text-xs shadow-md shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.03] active:scale-95 transition-all duration-200 inline-flex items-center gap-1.5 border border-indigo-400/30 cursor-pointer"
                       >
-                        Open Workflow
+                        <svg className="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>View Timeline</span>
                       </button>
                     </div>
                   </div>
@@ -326,7 +329,7 @@ export default function WorkflowDocuments() {
                         onChange={(event) =>
                           setSelectedFiles((prev) => ({ ...prev, [doc.trackingId]: event.target.files?.[0] || null }))
                         }
-                        className="flex-1 min-w-[200px] text-xs theme-text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-500/10 file:text-blue-400 hover:file:bg-blue-500/20 file:transition file:cursor-pointer"
+                        className="flex-1 min-w-[200px] text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 dark:file:bg-indigo-600 dark:file:text-white dark:hover:file:bg-indigo-500 file:cursor-pointer file:transition duration-150 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                       />
                       <button
                         type="submit"

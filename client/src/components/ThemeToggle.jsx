@@ -1,8 +1,16 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 
 export default function ThemeToggle({ className = "" }) {
   const { currentTheme, toggleTheme } = useTheme();
+  const location = useLocation();
+
+  // Hide floating theme toggle button on Login & Auth routes
+  if (["/login", "/register", "/verify-otp", "/"].includes(location.pathname)) {
+    return null;
+  }
+
   const isDark = currentTheme === "dark";
 
   return (
@@ -10,7 +18,7 @@ export default function ThemeToggle({ className = "" }) {
       type="button"
       onClick={toggleTheme}
       title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-      className={`fixed bottom-[92px] right-7 z-50 w-12 h-12 rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer border border-t-[#6b7280]/60 border-r-[#4b5563]/40 border-b-[#1f2937]/80 border-l-[#4b5563]/40 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5),_inset_0_1.5px_1px_rgba(255,255,255,0.15)] bg-gradient-to-b from-[#374151] to-[#111827] text-amber-400 hover:text-amber-300 hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6),_0_0_15px_rgba(245,158,11,0.25)] ${className}`}
+      className={`fixed bottom-[86px] right-6 z-50 w-[50px] h-[50px] rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer border border-t-[#6b7280]/60 border-r-[#4b5563]/40 border-b-[#1f2937]/80 border-l-[#4b5563]/40 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5),_inset_0_1.5px_1px_rgba(255,255,255,0.15)] bg-gradient-to-b from-[#374151] to-[#111827] text-amber-400 hover:text-amber-300 hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6),_0_0_15px_rgba(245,158,11,0.25)] ${className}`}
     >
       {isDark ? (
         /* Sun Icon */

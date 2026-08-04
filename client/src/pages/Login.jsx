@@ -247,6 +247,13 @@ export default function Login() {
             )}
           </button>
         </div>
+
+        {/* Footer Attribution */}
+        <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800 text-center">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+            Document Tracking System — Designed &amp; Developed by <span className="font-bold text-indigo-600 dark:text-indigo-400">CodeBloom</span>
+          </p>
+        </div>
       </div>
     </div>
   );

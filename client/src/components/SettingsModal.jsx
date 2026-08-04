@@ -162,6 +162,11 @@ export default function SettingsModal({ isOpen, onClose }) {
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     )},
+    { id: "about", label: "App Details & Credits", icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    )},
   ];
 
   return (
@@ -433,6 +438,44 @@ export default function SettingsModal({ isOpen, onClose }) {
                     )}
                   </div>
                 )}
+
+                {activeTab === "about" && (
+                  <div className="space-y-6 animate-fade-in">
+                    <div className="border-b border-slate-800 pb-4">
+                      <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        <span>🌸</span> App Details &amp; Credits
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1">System specifications, developer credits, and release details.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block">Developer Team</span>
+                        <p className="font-bold text-purple-400 text-base">Team CodeBloom</p>
+                        <p className="text-[11px] text-slate-400">Core Engineering &amp; UI Design</p>
+                      </div>
+
+                      <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block">Application</span>
+                        <p className="font-bold text-white text-base">Document Workflow Tracking System</p>
+                        <p className="text-[11px] text-slate-400">Enterprise Document Tracking</p>
+                      </div>
+
+                      <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block">Version</span>
+                        <p className="font-bold text-emerald-400 text-base">v1.0.0</p>
+                        <p className="text-[11px] text-slate-400">Production Build</p>
+                      </div>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-slate-950/60 border border-slate-800/80 space-y-2 text-xs text-slate-300">
+                      <h4 className="font-bold text-white uppercase tracking-wider">System Architecture &amp; Credits</h4>
+                      <p className="text-slate-400 leading-relaxed">
+                        Built with React 18, Node.js, Express, MongoDB, Socket.io real-time tracking, and Tailwind CSS. Designed and developed by Team CodeBloom.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -447,7 +490,7 @@ export default function SettingsModal({ isOpen, onClose }) {
             >
               Cancel
             </button>
-            {activeTab !== "logs" && (
+            {activeTab !== "logs" && activeTab !== "about" && (
               <button
                 type="button"
                 onClick={handleSave}

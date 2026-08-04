@@ -446,7 +446,7 @@ const uploadAvatar = async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const maxSize = 20 * 1024 * 1024; // 20MB
+    const maxSize = 10 * 1024 * 1024; // 10MB
     const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
     if (!allowedMimeTypes.includes(req.file.mimetype) || req.file.size > maxSize) {
@@ -454,7 +454,7 @@ const uploadAvatar = async (req, res) => {
       if (req.file.path && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
       }
-      return res.status(400).json({ message: "Selected image exceeds the 20MB limit. Please choose a smaller file." });
+      return res.status(400).json({ message: "Selected image exceeds the 10MB limit. Please choose a smaller file." });
     }
 
     const user = await User.findById(req.user.id);

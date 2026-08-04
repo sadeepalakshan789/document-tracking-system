@@ -496,6 +496,34 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* App Details & Credits Section */}
+        <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800 space-y-3">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-sm">
+              🌸
+            </span>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">App Details &amp; Credits</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">System specification and engineering attribution</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs pt-1">
+            <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 space-y-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Developer Team</span>
+              <p className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">Team CodeBloom</p>
+            </div>
+            <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 space-y-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Application</span>
+              <p className="font-bold text-slate-900 dark:text-slate-100 text-sm">Document Workflow Tracking System</p>
+            </div>
+            <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 space-y-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Version</span>
+              <p className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">v1.0.0</p>
+            </div>
+          </div>
+        </div>
+
         <div className="pt-3">
           <button
             onClick={handleSave}

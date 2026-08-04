@@ -107,6 +107,44 @@ canvas {
   border-color: var(--accent);
 }
 
+/* File Upload Button default styling for light & dark mode contrast */
+input[type="file"]::file-selector-button,
+input[type="file"]::-webkit-file-upload-button {
+  margin-right: 0.75rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease-in-out;
+  background-color: #e0e7ff;
+  color: #4338ca;
+}
+
+input[type="file"]::file-selector-button:hover,
+input[type="file"]::-webkit-file-upload-button:hover {
+  background-color: #c7d2fe;
+}
+
+html.dark input[type="file"]::file-selector-button,
+html.dark input[type="file"]::-webkit-file-upload-button {
+  background-color: #4f46e5;
+  color: #ffffff;
+}
+
+html.dark input[type="file"]::file-selector-button:hover,
+html.dark input[type="file"]::-webkit-file-upload-button:hover {
+  background-color: #6366f1;
+  color: #ffffff;
+}
+
+input[type="file"]:focus::file-selector-button,
+input[type="file"]:focus-visible::file-selector-button {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Shared Auth wallpaper animation
 ───────────────────────────────────────────────────────────────────────────── */

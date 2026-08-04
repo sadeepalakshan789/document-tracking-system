@@ -109,17 +109,17 @@ export default function SupportChatWidget({ currentUser }) {
       {/* Floating Chat Button */}
       <button
         onClick={handleOpenToggle}
-        className="relative w-14 h-14 bg-gradient-to-tr from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-all duration-300 group border border-indigo-400/20"
+        className="relative w-[50px] h-[50px] bg-gradient-to-tr from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-full flex items-center justify-center border border-indigo-400/20 shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5)] hover:scale-110 active:scale-95 hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.6),_0_0_15px_rgba(99,102,241,0.25)] transition-all duration-300 group"
         title="Live Support Chat"
         id="support-chat-fab"
       >
         {isOpen ? (
-          <svg className="w-6 h-6 transition-transform duration-300 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg className="w-5.5 h-5.5 transition-transform duration-300 rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         ) : (
-          <svg className="w-6 h-6 animate-pulse group-hover:scale-110 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+          <svg className="w-5.5 h-5.5 animate-pulse group-hover:scale-110 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
         )}
 
