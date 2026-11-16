@@ -51,7 +51,12 @@ const dispatchBackgroundEmails = async (notifications) => {
         user.email,
         user.name,
         `Document Update: ${notif.trackingId}`,
-        notif.message
+        notif.message,
+        {
+          priority: notif.priority,
+          dueDate: notif.dueDate,
+          trackingId: notif.trackingId,
+        }
       ).catch((err) => {
         console.error("Brevo Email Dispatcher Link Failed:", err.response ? JSON.stringify(err.response.body) : err.message);
       });
@@ -99,8 +104,16 @@ const buildDocumentResponse = (doc, currentUserId) => {
       : null;
   const isCurrentHolder = !!currentHolderId && currentHolderId === currentUser;
 
+  const rawDoc = doc.toObject ? doc.toObject() : { ...doc };
+  const isCompleted = rawDoc.status === "Completed";
+  const now = new Date();
+  const isOverdue = !isCompleted && rawDoc.dueDate && new Date(rawDoc.dueDate) < now;
+
   return {
-    ...doc.toObject(),
+    ...rawDoc,
+    priority: rawDoc.priority || "Normal",
+    dueDate: rawDoc.dueDate || null,
+    isOverdue: !!isOverdue,
     workflow: {
       totalSteps: doc.route.length,
       completedSteps: doc.route.filter((step) => step.status === "completed").length,
@@ -143,7 +156,14 @@ const canPreviewDownloadFile = (doc, userId, userRole = "") => {
 
 const createDocument = async (req, res) => {
   try {
-    const { title, content = "", routeUserIds = [], receiver } = req.body;
+    const {
+      title,
+      content = "",
+      routeUserIds = [],
+      receiver,
+      priority = "Normal",
+      dueDate,
+    } = req.body;
 
     const routeIds = Array.isArray(routeUserIds) ? routeUserIds : receiver ? [receiver] : [];
 
@@ -190,7 +210,17 @@ const createDocument = async (req, res) => {
       status: index === 0 ? "current" : "pending",
       notifiedAt: now,
       receivedAt: index === 0 ? now : undefined,
+      overdueNotified: false,
     }));
+
+    const validPriority = ["Normal", "Urgent", "Confidential"].includes(priority) ? priority : "Normal";
+    let parsedDueDate = null;
+    if (dueDate) {
+      const d = new Date(dueDate);
+      if (!isNaN(d.getTime())) {
+        parsedDueDate = d;
+      }
+    }
 
     const trackingId = `DOC-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 
@@ -199,6 +229,9 @@ const createDocument = async (req, res) => {
       content,
       trackingId,
       status: "In Transit",
+      priority: validPriority,
+      dueDate: parsedDueDate,
+      overdueNotified: false,
       sender: {
         userId: req.user.id,
         name: req.user.name,
@@ -214,7 +247,7 @@ const createDocument = async (req, res) => {
       history: [
         {
           action: "DOCUMENT_CREATED",
-          description: `${req.user.name} created document ${trackingId} and notified all selected recipients before dispatch.`,
+          description: `${req.user.name} created document ${trackingId} (Priority: ${validPriority}${parsedDueDate ? `, Due: ${parsedDueDate.toLocaleString()}` : ""}) and notified all selected recipients before dispatch.`,
           actorId: req.user.id,
           actorName: req.user.name,
           timestamp: now,
@@ -237,10 +270,12 @@ const createDocument = async (req, res) => {
         userId: step.userId,
         documentId: document._id,
         trackingId,
+        priority: validPriority,
+        dueDate: parsedDueDate,
         type: isCurrent ? "current" : "upcoming",
         message: isCurrent
-          ? `Document ${trackingId} is now with you. You are step ${index + 1} of ${route.length}.`
-          : `You have been added to workflow for document ${trackingId}. Your position is ${index + 1} of ${route.length}.`,
+          ? `Document ${trackingId} (${validPriority} Priority) is now with you. You are step ${index + 1} of ${route.length}.`
+          : `You have been added to workflow for document ${trackingId} (${validPriority} Priority). Your position is ${index + 1} of ${route.length}.`,
       });
     }
 
@@ -248,6 +283,8 @@ const createDocument = async (req, res) => {
       userId: req.user.id,
       documentId: document._id,
       trackingId,
+      priority: validPriority,
+      dueDate: parsedDueDate,
       type: "system",
       message: `You created document ${trackingId} with ${route.length} recipients in sequence.`,
     });
@@ -292,22 +329,87 @@ const getDocument = async (req, res) => {
 
 const getMyDocuments = async (req, res) => {
   try {
-    // Condition 1: The current holder MUST be the logged-in user
-    const documents = await Document.find({
-      "currentHolder.userId": req.user.id,
-    }).sort({ updatedAt: -1 });
+    const userObjId = mongoose.Types.ObjectId.isValid(String(req.user.id))
+      ? new mongoose.Types.ObjectId(String(req.user.id))
+      : null;
 
-    // Condition 2: The receipt status for the logged-in user MUST be "Pending" (!currentStep.acceptedAt)
+    const userIds = [req.user.id, ...(userObjId ? [userObjId] : [])];
+
+    // Narrow DB query: only docs where the user is the current holder
+    // AND the document is not completed/rejected/cancelled
+    const query = {
+      status: { $nin: ["Completed", "Rejected", "Cancelled"] },
+      $or: [
+        { "currentHolder.userId": req.user.id },
+        ...(userObjId ? [{ "currentHolder.userId": userObjId }] : []),
+        {
+          route: {
+            $elemMatch: {
+              $or: [
+                { userId: req.user.id },
+                ...(userObjId ? [{ userId: userObjId }] : []),
+              ],
+              status: "current",
+            },
+          },
+        },
+      ],
+    };
+
+    const documents = await Document.find(query).sort({ updatedAt: -1 });
+
     const actionableDocuments = documents.filter((doc) => {
-      const currentStep =
-        doc.currentHolderIndex >= 0 && doc.currentHolderIndex < doc.route.length
-          ? doc.route[doc.currentHolderIndex]
-          : null;
+      // ── Condition A: Status must be an active in-progress state ──────────
+      const statusLower = String(doc.status || "").trim().toLowerCase();
+      const allowedStatuses = ["in transit", "pending acceptance", "submitted"];
+      if (!allowedStatuses.includes(statusLower)) return false;
 
-      if (!currentStep) return false;
+      // ── Condition B: Must have a valid currentHolderIndex ─────────────────
+      const idx = doc.currentHolderIndex;
+      if (idx === undefined || idx === null || idx < 0 || idx >= doc.route.length) return false;
 
-      // Must not be accepted yet
-      return !currentStep.acceptedAt;
+      // ── Condition C: The active step must be "current" (not pending/completed) ──
+      const currentStep = doc.route[idx];
+      if (!currentStep || currentStep.status !== "current") return false;
+
+      // ── Condition D: The logged-in user must be the holder at that step ───
+      const isHolderById =
+        isSameId(doc.currentHolder?.userId, req.user.id) ||
+        isSameId(currentStep.userId, req.user.id);
+
+      // Also allow email-matching as a fallback for legacy data
+      const userEmail = String(req.user.email || "").trim().toLowerCase();
+      const isHolderByEmail =
+        userEmail &&
+        (String(doc.currentHolder?.email || "").trim().toLowerCase() === userEmail ||
+          String(currentStep.email || "").trim().toLowerCase() === userEmail);
+
+      if (!isHolderById && !isHolderByEmail) return false;
+
+      // ── Condition E: Not self-created loopback ────────────────────────────
+      // Exclude docs where sender === current user AND this is the very first step
+      // (i.e., the document was sent to themselves or is a single-user loop).
+      const isSenderById =
+        isSameId(doc.sender?.userId, req.user.id) ||
+        (userObjId && isSameId(doc.sender?.userId, userObjId));
+      const isSenderByEmail =
+        userEmail && String(doc.sender?.email || "").trim().toLowerCase() === userEmail;
+      const isSender = isSenderById || isSenderByEmail;
+
+      if (isSender && idx <= 0) {
+        // sender is at step 0 — this is a self-route or loopback; exclude
+        return false;
+      }
+
+      // ── Condition F: Acceptance is strictly pending (never already accepted) ──
+      if (currentStep.acceptedAt) return false;
+      if (currentStep.status === "completed") return false;
+      if (
+        doc.receiptStatus &&
+        String(doc.receiptStatus).trim().toLowerCase() === "accepted"
+      ) return false;
+
+      return true;
     });
 
     const formattedDocuments = actionableDocuments.map((doc) =>
@@ -344,7 +446,7 @@ const acceptDocument = async (req, res) => {
     const now = new Date();
     const currentStep = document.route[document.currentHolderIndex];
 
-    if (currentStep.acceptedAt) {
+    if (currentStep.acceptedAt && currentStep.status === "completed") {
       return res.json(buildDocumentResponse(document, req.user.id));
     }
 
@@ -352,30 +454,103 @@ const acceptDocument = async (req, res) => {
       currentStep.receivedAt = now;
     }
     currentStep.acceptedAt = now;
+    currentStep.completedAt = now;
+    currentStep.status = "completed";
 
-    document.history.push({
-      action: "DOCUMENT_ACCEPTED",
-      description: `${req.user.name} accepted document ${document.trackingId}.`,
-      actorId: req.user.id,
-      actorName: req.user.name,
-      timestamp: now,
-    });
+    const nextIndex = document.currentHolderIndex + 1;
+    const hasNext = nextIndex < document.route.length;
 
-    await document.save();
+    const newNotifs = [];
 
-    const newNotifs = [
-      {
+    if (hasNext) {
+      const nextStep = document.route[nextIndex];
+      nextStep.status = "current";
+      nextStep.receivedAt = now;
+      nextStep.acceptedAt = undefined;
+      nextStep.overdueNotified = false;
+
+      document.currentHolderIndex = nextIndex;
+      document.currentHolder = {
+        userId: nextStep.userId,
+        name: nextStep.name,
+        email: nextStep.email,
+      };
+      document.status = "In Transit";
+
+      document.history.push(
+        {
+          action: "DOCUMENT_ACCEPTED",
+          description: `${req.user.name} accepted document ${document.trackingId}.`,
+          actorId: req.user.id,
+          actorName: req.user.name,
+          timestamp: now,
+        },
+        {
+          action: "WORKFLOW_STEP_ADVANCED",
+          description: `Document advanced to ${nextStep.name} (Step ${nextIndex + 1} of ${document.route.length}). Pending acceptance.`,
+          actorId: req.user.id,
+          actorName: req.user.name,
+          timestamp: now,
+        }
+      );
+
+      // Notification to 2nd receiver (type: "current" -> triggers Brevo email)
+      newNotifs.push({
+        userId: nextStep.userId,
+        documentId: document._id,
+        trackingId: document.trackingId,
+        priority: document.priority,
+        dueDate: document.dueDate,
+        type: "current",
+        message: `Document ${document.trackingId} is now with you from ${req.user.name}. You are step ${nextIndex + 1} of ${document.route.length}. Please review and accept.`,
+      });
+
+      // In-app system notification to sender (type: "system" -> Brevo email skipped)
+      newNotifs.push({
         userId: document.sender.userId,
         documentId: document._id,
         trackingId: document.trackingId,
+        priority: document.priority,
+        dueDate: document.dueDate,
         type: "system",
-        message: `${req.user.name} accepted document ${document.trackingId}.`,
-      },
-    ];
+        message: `${req.user.name} accepted document ${document.trackingId}. Workflow advanced to ${nextStep.name}.`,
+      });
+    } else {
+      document.currentHolderIndex = -1;
+      document.currentHolder = null;
+      document.status = "Completed";
 
+      document.history.push(
+        {
+          action: "DOCUMENT_ACCEPTED",
+          description: `${req.user.name} accepted document ${document.trackingId}.`,
+          actorId: req.user.id,
+          actorName: req.user.name,
+          timestamp: now,
+        },
+        {
+          action: "WORKFLOW_COMPLETED",
+          description: `Workflow completed. Final acceptance and processing finished by ${req.user.name}.`,
+          actorId: req.user.id,
+          actorName: req.user.name,
+          timestamp: now,
+        }
+      );
+
+      // System notification to sender that workflow completed
+      newNotifs.push({
+        userId: document.sender.userId,
+        documentId: document._id,
+        trackingId: document.trackingId,
+        priority: document.priority,
+        dueDate: document.dueDate,
+        type: "system",
+        message: `Workflow completed for document ${document.trackingId}. Final acceptance by ${req.user.name}.`,
+      });
+    }
+
+    await document.save();
     await createNotifications(newNotifs);
-
-    // 🚀 Background email dispatch
     dispatchBackgroundEmails(newNotifs);
 
     return res.json(buildDocumentResponse(document, req.user.id));
@@ -450,6 +625,7 @@ const forwardDocument = async (req, res) => {
       nextStep.status = "current";
       nextStep.receivedAt = now;
       nextStep.acceptedAt = undefined;
+      nextStep.overdueNotified = false;
 
       document.currentHolderIndex = nextIndex;
       document.currentHolder = {
@@ -472,13 +648,17 @@ const forwardDocument = async (req, res) => {
           userId: nextStep.userId,
           documentId: document._id,
           trackingId: document.trackingId,
+          priority: document.priority,
+          dueDate: document.dueDate,
           type: "current",
-          message: `Document ${document.trackingId} is now with you.`,
+          message: `Document ${document.trackingId} (${document.priority || "Normal"} Priority) is now with you.`,
         },
         {
           userId: document.sender.userId,
           documentId: document._id,
           trackingId: document.trackingId,
+          priority: document.priority,
+          dueDate: document.dueDate,
           type: "forwarded",
           message: `${req.user.name} forwarded document ${document.trackingId} to ${nextStep.name}.`,
         }
@@ -662,10 +842,17 @@ const getTrackerDocuments = async (req, res) => {
       departmentUserIds = usersInDept.map((u) => u._id);
     }
 
+    const userObjId = mongoose.Types.ObjectId.isValid(String(req.user.id))
+      ? new mongoose.Types.ObjectId(String(req.user.id))
+      : null;
+
+    const userIds = [req.user.id, ...(userObjId ? [userObjId] : [])];
+
     const documents = await Document.find({
       $or: [
-        { "currentHolder.userId": req.user.id },
-        { "sender.userId": req.user.id },
+        { "currentHolder.userId": { $in: userIds } },
+        { "sender.userId": { $in: userIds } },
+        { "route.userId": { $in: userIds } },
         { "currentHolder.userId": { $in: departmentUserIds } },
       ],
     }).sort({ updatedAt: -1 });

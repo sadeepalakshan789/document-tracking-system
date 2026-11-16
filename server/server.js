@@ -8,10 +8,12 @@ const { Server } = require("socket.io");
 const connectDB = require("./config/db");
 const { ensureCampusPositions } = require("./config/campusPositions");
 const { initSocketHandler } = require("./utils/socketHandler");
+const { initOverdueChecker } = require("./utils/overdueChecker");
 
 const startServer = async () => {
   await connectDB();
   await ensureCampusPositions();
+  initOverdueChecker();
 
   const app = express();
   app.use(cors());

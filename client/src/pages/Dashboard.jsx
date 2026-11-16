@@ -9,7 +9,9 @@ import UserSettingsModal from "../components/UserSettingsModal";
 import WorkflowCalendar from "../components/WorkflowCalendar";
 import CreateDocumentModal from "../components/CreateDocumentModal";
 import TrackDocumentModal from "../components/TrackDocumentModal";
+import { PriorityBadge, DueDateBadge } from "../components/PriorityBadge";
 import {
+  acceptDocument,
   deleteDocument,
   downloadDocumentFile,
   downloadDocumentVersion,
@@ -38,9 +40,98 @@ const routeSummary = (doc) => {
 };
 
 const getReceiptStatus = (doc) => {
-  const currentStep = doc.route?.find((step) => step.status === "current");
-  if (!currentStep) return "Accepted";
-  return currentStep.acceptedAt ? "Accepted" : "Pending";
+  if (!doc) return "Pending";
+  if (doc.status === "Completed") return "Accepted";
+  if (doc.receiptStatus) {
+    const rs = String(doc.receiptStatus).trim().toLowerCase();
+    if (rs === "accepted") return "Accepted";
+    if (rs === "pending" || rs === "pending acceptance") return "Pending";
+  }
+  // Fall back to checking the current active route step
+  const idx = typeof doc.currentHolderIndex === "number" && doc.currentHolderIndex >= 0
+    ? doc.currentHolderIndex
+    : -1;
+  const currentStep =
+    idx >= 0 && idx < (doc.route?.length ?? 0)
+      ? doc.route[idx]
+      : doc.route?.find((step) => step.status === "current");
+  if (!currentStep) return "Pending";
+  return currentStep.acceptedAt || currentStep.status === "completed" ? "Accepted" : "Pending";
+};
+
+/**
+ * Strict client-side guard for "Documents Assigned To Me — Pending Acceptance".
+ * Acts as a defensive double-check on top of the backend filter to eliminate
+ * any stale / race-condition documents that shouldn't appear.
+ *
+ * A document passes ONLY if ALL of the following conditions hold:
+ *   A. Active in-progress status (not Completed / Rejected / Cancelled).
+ *   B. Valid currentHolderIndex pointing to a "current" step.
+ *   C. The logged-in user IS the current holder (by id, email, or name).
+ *   D. NOT a self-created loopback at step 0 (sender === user AND idx === 0).
+ *   E. The current step has NOT been accepted yet.
+ *   F. The backend workflow flag also agrees (canAccept === true).
+ */
+const checkStrictPendingAcceptance = (doc, currentUser) => {
+  if (!doc || !currentUser) return false;
+
+  // A. Status gate
+  const statusLower = String(doc.status || "").trim().toLowerCase();
+  const allowedStatuses = ["in transit", "pending acceptance", "submitted"];
+  if (!allowedStatuses.includes(statusLower)) return false;
+
+  // B. Valid active step
+  const idx =
+    typeof doc.currentHolderIndex === "number" && doc.currentHolderIndex >= 0
+      ? doc.currentHolderIndex
+      : -1;
+  if (idx < 0 || !doc.route || idx >= doc.route.length) return false;
+  const currentStep = doc.route[idx];
+  if (!currentStep || currentStep.status !== "current") return false;
+
+  // C. Must be the current holder
+  const currentUserId = String(currentUser._id || currentUser.id || "").trim();
+  const currentUserEmail = String(currentUser.email || "").trim().toLowerCase();
+  const currentUserName = String(currentUser.name || "").trim().toLowerCase();
+
+  const holderUserId = String(
+    doc.currentHolder?.userId || doc.currentHolderId || doc.currentHolder?._id || ""
+  ).trim();
+  const holderEmail = String(doc.currentHolder?.email || "").trim().toLowerCase();
+  const holderName = String(doc.currentHolder?.name || "").trim().toLowerCase();
+  const stepUserId = String(currentStep.userId || "").trim();
+  const stepEmail = String(currentStep.email || "").trim().toLowerCase();
+  const stepName = String(currentStep.name || "").trim().toLowerCase();
+
+  const isHolder =
+    (currentUserId && (currentUserId === holderUserId || currentUserId === stepUserId)) ||
+    (currentUserEmail && (currentUserEmail === holderEmail || currentUserEmail === stepEmail)) ||
+    (currentUserName && (currentUserName === holderName || currentUserName === stepName));
+
+  if (!isHolder) return false;
+
+  // D. Exclude self-created loopback at step 0
+  const senderUserId = String(doc.sender?.userId || doc.sender?._id || doc.createdBy || "").trim();
+  const senderEmail = String(doc.sender?.email || "").trim().toLowerCase();
+  const senderName = String(doc.sender?.name || "").trim().toLowerCase();
+
+  const isSender =
+    (currentUserId && currentUserId === senderUserId) ||
+    (currentUserEmail && currentUserEmail === senderEmail) ||
+    (currentUserName && currentUserName === senderName);
+
+  // If user is the sender AND at step 0, this is a self-route/loopback — exclude
+  if (isSender && idx <= 0) return false;
+
+  // E. Acceptance strictly pending
+  if (currentStep.acceptedAt) return false;
+  if (currentStep.status === "completed") return false;
+  if (doc.receiptStatus && String(doc.receiptStatus).trim().toLowerCase() === "accepted") return false;
+
+  // F. Backend workflow canAccept flag (trust it when present)
+  if (doc.workflow && doc.workflow.canAccept === false) return false;
+
+  return true;
 };
 
 const stepCircleClass = (step) => {
@@ -165,6 +256,7 @@ export default function Dashboard() {
   const [selectedFiles, setSelectedFiles] = useState({});
   const [uploadingDocumentId, setUploadingDocumentId] = useState("");
   const [actionDocumentId, setActionDocumentId] = useState("");
+  const [acceptingDocumentId, setAcceptingDocumentId] = useState("");
   const [versionHistoryByDoc, setVersionHistoryByDoc] = useState({});
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
@@ -175,13 +267,16 @@ export default function Dashboard() {
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
   const [trackModalDocumentId, setTrackModalDocumentId] = useState("");
 
-  // Documents where the logged-in user is the active current holder AND needs to accept.
-  // The backend already enforces this via getMyDocuments, but we add a client-side
-  // guard (canAccept) as a defensive double-check against any stale state.
-  const needsMyAction = useMemo(
-    () => documents.filter((doc) => doc.workflow?.canAccept === true),
-    [documents]
+  // "Documents Assigned To Me — Pending Acceptance":
+  // Apply the strict client-side guard on top of whatever the backend returned.
+  // This eliminates any stale / race-condition documents that shouldn't appear.
+  const pendingActionDocuments = useMemo(
+    () => documents.filter((doc) => checkStrictPendingAcceptance(doc, user)),
+    [documents, user]
   );
+
+  // Alias used by card-filter sub-views
+  const needsMyAction = pendingActionDocuments;
 
   const unreadRelatedDocuments = useMemo(() => {
     const unreadTrackingIds = new Set(
@@ -190,23 +285,15 @@ export default function Dashboard() {
         .map((notification) => notification.trackingId)
     );
 
-    return documents.filter((doc) => unreadTrackingIds.has(doc.trackingId));
-  }, [documents, notifications]);
+    // Only surface docs that (a) have unread notifications AND (b) still require the user's action
+    return pendingActionDocuments.filter((doc) => unreadTrackingIds.has(doc.trackingId));
+  }, [pendingActionDocuments, notifications]);
 
   const filteredDocuments = useMemo(() => {
-    // "action" sub-filter: already-strict needsMyAction list
-    // "notification" sub-filter: docs with unread notifications
-    // "all" (default): the full documents array which the backend has already scoped
-    //   to only docs where the user is the active holder with a pending step
-    const baseDocuments =
-      activeCardFilter === "action"
-        ? needsMyAction
-        : activeCardFilter === "notification"
-          ? unreadRelatedDocuments
-          : documents; // backend already enforces: currentHolder === me AND !acceptedAt
-
-    return baseDocuments;
-  }, [activeCardFilter, documents, needsMyAction, unreadRelatedDocuments]);
+    if (activeCardFilter === "notification") return unreadRelatedDocuments;
+    // "all" and "action" both show the strict pending-acceptance list
+    return pendingActionDocuments;
+  }, [activeCardFilter, pendingActionDocuments, unreadRelatedDocuments]);
 
   const allAccessibleDocuments = useMemo(() => {
     const uniqueDocs = new Map();
@@ -680,6 +767,36 @@ export default function Dashboard() {
     documentsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  /**
+   * Directly accept a document from the pending card — no modal needed.
+   * Instantly removes the card from the pending list in local state,
+   * then triggers a background refresh so the Location Tracker updates.
+   */
+  const handleDirectAccept = async (doc, e) => {
+    if (e) e.stopPropagation();
+    if (!doc || !doc.trackingId) return;
+    if (acceptingDocumentId) return; // prevent double-clicks
+
+    try {
+      setAcceptingDocumentId(doc.trackingId);
+      setError("");
+      setSuccess("");
+
+      await acceptDocument(doc.trackingId);
+      setSuccess(`Document ${doc.trackingId} accepted successfully!`);
+
+      // Immediately remove from the pending section — zero latency
+      setDocuments((prev) => prev.filter((d) => d.trackingId !== doc.trackingId));
+
+      // Background refresh to sync the Location Tracker and other sections
+      fetchDashboardData(false);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to accept document. Please try again.");
+    } finally {
+      setAcceptingDocumentId("");
+    }
+  };
+
   const handleUploadFile = async (doc, event) => {
     event.preventDefault();
     const file = selectedFiles[doc.trackingId];
@@ -744,7 +861,7 @@ export default function Dashboard() {
           const text = await err.response.data.text();
           const parsed = JSON.parse(text);
           if (parsed?.message) message = parsed.message;
-        } catch {}
+        } catch { }
       } else if (err?.response?.data?.message) {
         message = err.response.data.message;
       }
@@ -791,7 +908,7 @@ export default function Dashboard() {
           const text = await err.response.data.text();
           const parsed = JSON.parse(text);
           if (parsed?.message) message = parsed.message;
-        } catch {}
+        } catch { }
       } else if (err?.response?.data?.message) {
         message = err.response.data.message;
       }
@@ -1192,13 +1309,23 @@ export default function Dashboard() {
 
                     {trackedDocument && (
                       <div className="space-y-4">
-                        <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 space-y-1.5 shadow-sm transition-all duration-300">
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Sender:{" "}
-                            <span className="font-semibold text-slate-900 dark:text-slate-100">
-                              {trackedDocument.sender?.name || "N/A"}
-                            </span>
-                          </p>
+                        <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 space-y-2 shadow-sm transition-all duration-300">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              Sender:{" "}
+                              <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                {trackedDocument.sender?.name || "N/A"}
+                              </span>
+                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <PriorityBadge priority={trackedDocument.priority} />
+                              <DueDateBadge
+                                dueDate={trackedDocument.dueDate}
+                                isOverdue={trackedDocument.isOverdue}
+                                isCompleted={trackedDocument.status === "Completed"}
+                              />
+                            </div>
+                          </div>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
                             Receivers in path:{" "}
                             <span className="font-semibold text-slate-900 dark:text-slate-100">
@@ -1260,14 +1387,22 @@ export default function Dashboard() {
                         <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 space-y-3 shadow-sm transition-all duration-300">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Live Workflow Summary</p>
-                            <span
-                              className={`rounded-full text-xs font-semibold border px-3 py-1 ${trackedLocation?.isCompleted
-                                ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
-                                : "bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800"
-                                }`}
-                            >
-                              {trackedDocument.status}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <PriorityBadge priority={trackedDocument.priority} />
+                              <DueDateBadge
+                                dueDate={trackedDocument.dueDate}
+                                isOverdue={trackedDocument.isOverdue}
+                                isCompleted={trackedLocation?.isCompleted}
+                              />
+                              <span
+                                className={`rounded-full text-xs font-semibold border px-3 py-1 ${trackedLocation?.isCompleted
+                                  ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                  : "bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800"
+                                  }`}
+                              >
+                                {trackedDocument.status}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-2 gap-3 text-xs">
@@ -1381,12 +1516,18 @@ export default function Dashboard() {
                 </div>
 
                 {displayedDocuments.length === 0 ? (
-                  <p className="text-slate-500 dark:text-slate-400 py-8 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-xs leading-relaxed">
-                    {documentSearch && "No documents match your search query."}
-                    {!documentSearch && activeCardFilter === "all" && "No documents are currently waiting for your acceptance. You are either not the active holder on any document, or you have already accepted all documents assigned to you."}
-                    {!documentSearch && activeCardFilter === "action" && "No documents are currently awaiting your acceptance."}
-                    {!documentSearch && activeCardFilter === "notification" && "No documents are linked to unread notifications."}
-                  </p>
+                  <div className="py-10 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-xl flex flex-col items-center gap-3">
+                    <svg className="w-10 h-10 text-slate-300 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed max-w-xs">
+                      {documentSearch
+                        ? `No documents match "${documentSearch}".`
+                        : activeCardFilter === "notification"
+                          ? "No pending documents are linked to unread notifications."
+                          : "No documents awaiting your acceptance. You're all caught up!"}
+                    </p>
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     {displayedDocuments.map((doc) => {
@@ -1407,7 +1548,13 @@ export default function Dashboard() {
                               <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">ID: {doc.trackingId}</p>
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                              <PriorityBadge priority={doc.priority} />
+                              <DueDateBadge
+                                dueDate={doc.dueDate}
+                                isOverdue={doc.isOverdue}
+                                isCompleted={isComplete}
+                              />
                               <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${statusBadge}`}>
                                 {doc.status}
                               </span>
@@ -1493,6 +1640,29 @@ export default function Dashboard() {
                                   </button>
                                 </div>
                               )}
+                              <button
+                                type="button"
+                                onClick={(e) => handleDirectAccept(doc, e)}
+                                disabled={acceptingDocumentId === doc.trackingId}
+                                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:scale-[1.03] active:scale-95 transition-all duration-200 inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+                              >
+                                {acceptingDocumentId === doc.trackingId ? (
+                                  <>
+                                    <svg className="w-3.5 h-3.5 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                    </svg>
+                                    <span>Accepting…</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Accept Document</span>
+                                  </>
+                                )}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {

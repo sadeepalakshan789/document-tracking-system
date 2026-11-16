@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllDocuments } from "../services/api";
+import { PriorityBadge, DueDateBadge } from "./PriorityBadge";
 
 const getNormalizedStatus = (doc) => {
   const s = String(doc?.status || "").trim();
@@ -138,7 +139,16 @@ export default function WorkflowDocumentsModal({
 
   if (!isOpen) return null;
 
-  const statuses = ["All", "Pending", "In Transit", "Completed"];
+  const statuses = ["All", "Urgent", "Overdue", "Pending", "In Transit", "Completed"];
+
+  const isDocOverdue = (doc) => {
+    if (getNormalizedStatus(doc) === "Completed") return false;
+    return Boolean(doc.isOverdue || (doc.dueDate && new Date(doc.dueDate) < new Date()));
+  };
+
+  const isDocUrgent = (doc) => {
+    return String(doc.priority || "").toLowerCase() === "urgent";
+  };
 
   const filtered = documents.filter((doc) => {
     const q = searchQuery.toLowerCase().trim();
@@ -150,12 +160,40 @@ export default function WorkflowDocumentsModal({
       (doc.title || "").toLowerCase().includes(q) ||
       (doc.trackingId || "").toLowerCase().includes(q) ||
       holderStr.toLowerCase().includes(q);
+
     const norm = getNormalizedStatus(doc);
-    const matchStatus = statusFilter === "All" || norm === statusFilter;
+    const matchStatus =
+      statusFilter === "All"
+        ? true
+        : statusFilter === "Urgent"
+        ? isDocUrgent(doc)
+        : statusFilter === "Overdue"
+        ? isDocOverdue(doc)
+        : norm === statusFilter;
+
     return matchSearch && matchStatus;
   });
 
-  const countFor = (s) => (s === "All" ? documents.length : documents.filter((d) => getNormalizedStatus(d) === s).length);
+  const sorted = [...filtered].sort((a, b) => {
+    const aOverdue = isDocOverdue(a);
+    const bOverdue = isDocOverdue(b);
+    if (aOverdue && !bOverdue) return -1;
+    if (!aOverdue && bOverdue) return 1;
+
+    const aUrgent = isDocUrgent(a);
+    const bUrgent = isDocUrgent(b);
+    if (aUrgent && !bUrgent) return -1;
+    if (!aUrgent && bUrgent) return 1;
+
+    return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
+  });
+
+  const countFor = (s) => {
+    if (s === "All") return documents.length;
+    if (s === "Urgent") return documents.filter(isDocUrgent).length;
+    if (s === "Overdue") return documents.filter(isDocOverdue).length;
+    return documents.filter((d) => getNormalizedStatus(d) === s).length;
+  };
 
   const handleCopy = (trackingId, e) => {
     e.stopPropagation();
@@ -267,7 +305,7 @@ export default function WorkflowDocumentsModal({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((doc) => {
+                {sorted.map((doc) => {
                   const routeTotal = Array.isArray(doc.route) && doc.route.length > 0
                     ? doc.route.length
                     : (doc.workflow?.totalSteps || 0);
@@ -278,6 +316,7 @@ export default function WorkflowDocumentsModal({
                   const holderName = getHolderDisplay(doc.currentHolder);
                   const normStatus = getNormalizedStatus(doc);
                   const targetTrackingId = doc.trackingId || doc._id;
+                  const overdue = isDocOverdue(doc);
 
                   return (
                     <tr
@@ -287,7 +326,19 @@ export default function WorkflowDocumentsModal({
                       title="Click to view full workflow details"
                     >
                       <td className="py-3 px-3">
-                        <span className="font-medium text-slate-800 dark:text-slate-200 line-clamp-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{doc.title || "Untitled"}</span>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium text-slate-800 dark:text-slate-200 line-clamp-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                            {doc.title || "Untitled"}
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <PriorityBadge priority={doc.priority} />
+                            <DueDateBadge
+                              dueDate={doc.dueDate}
+                              isOverdue={overdue}
+                              isCompleted={normStatus === "Completed"}
+                            />
+                          </div>
+                        </div>
                       </td>
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-1">

@@ -33,6 +33,9 @@ export default function CreateDocument() {
   const [submitting, setSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileError, setFileError] = useState("");
+  const [priority, setPriority] = useState("Normal");
+  const [slaPreset, setSlaPreset] = useState("none");
+  const [customDueDate, setCustomDueDate] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -159,12 +162,25 @@ export default function CreateDocument() {
       return;
     }
 
+    const getCalculatedDueDate = () => {
+      if (slaPreset === "none") return null;
+      if (slaPreset === "custom") return customDueDate ? new Date(customDueDate).toISOString() : null;
+      const target = new Date();
+      if (slaPreset === "24h") target.setHours(target.getHours() + 24);
+      else if (slaPreset === "48h") target.setHours(target.getHours() + 48);
+      else if (slaPreset === "3d") target.setDate(target.getDate() + 3);
+      else if (slaPreset === "7d") target.setDate(target.getDate() + 7);
+      return target.toISOString();
+    };
+
     try {
       setSubmitting(true);
       const payload = {
         title: title.trim(),
         content: content.trim(),
         routeUserIds: workflowUsers.map((user) => user._id),
+        priority,
+        dueDate: getCalculatedDueDate(),
       };
 
       const res = await createDocument(payload);
@@ -310,6 +326,106 @@ export default function CreateDocument() {
                 placeholder="Enter details or notes regarding this document..."
                 className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-3 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all duration-300"
               ></textarea>
+            </div>
+
+            {/* Priority Level Selector */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Priority Level
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { id: "Normal", label: "Normal", icon: "📄", badge: "Standard" },
+                  { id: "Urgent", label: "Urgent", icon: "🔥", badge: "Fast Track" },
+                  { id: "Confidential", label: "Confidential", icon: "🔒", badge: "Restricted" },
+                ].map((p) => {
+                  const isSelected = priority === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setPriority(p.id)}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? p.id === "Urgent"
+                            ? "bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300 ring-2 ring-rose-500/20"
+                            : p.id === "Confidential"
+                            ? "bg-purple-50 dark:bg-purple-950/40 border-purple-500 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20"
+                            : "bg-slate-100 dark:bg-slate-800 border-slate-400 dark:border-slate-500 text-slate-900 dark:text-slate-100 ring-2 ring-slate-400/20"
+                          : "bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{p.icon}</span>
+                        <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10">
+                          {p.badge}
+                        </span>
+                      </div>
+                      <span className="block text-xs font-bold mt-2">{p.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Deadline / SLA Selector */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Deadline / SLA Target
+                </label>
+                {slaPreset !== "none" && (
+                  <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                    {slaPreset === "custom" && customDueDate
+                      ? `Due: ${new Date(customDueDate).toLocaleString()}`
+                      : slaPreset === "24h"
+                      ? "Due in 24 hours"
+                      : slaPreset === "48h"
+                      ? "Due in 48 hours"
+                      : slaPreset === "3d"
+                      ? "Due in 3 days"
+                      : slaPreset === "7d"
+                      ? "Due in 7 days"
+                      : ""}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: "none", label: "No Deadline" },
+                  { id: "24h", label: "24 Hours" },
+                  { id: "48h", label: "48 Hours" },
+                  { id: "3d", label: "3 Days" },
+                  { id: "7d", label: "7 Days" },
+                  { id: "custom", label: "Custom..." },
+                ].map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => setSlaPreset(preset.id)}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                      slaPreset === preset.id
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                        : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              {slaPreset === "custom" && (
+                <div className="pt-1">
+                  <input
+                    type="datetime-local"
+                    value={customDueDate}
+                    onChange={(e) => setCustomDueDate(e.target.value)}
+                    required={slaPreset === "custom"}
+                    className="w-full bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 p-2.5 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="bg-slate-55 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 space-y-3 shadow-sm transition-all duration-300">

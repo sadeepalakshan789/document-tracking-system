@@ -12,6 +12,7 @@ import {
   rerouteDocument,
   uploadDocumentFile,
 } from "../services/api";
+import { PriorityBadge, DueDateBadge } from "./PriorityBadge";
 
 const badgeClass = (status) => {
   if (status === "current") return "bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/25";
@@ -485,9 +486,17 @@ export default function TrackDocumentModal({
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">
                     {document.title}
                   </h3>
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                    {document.status}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <PriorityBadge priority={document.priority} showNormal={true} />
+                    <DueDateBadge
+                      dueDate={document.dueDate}
+                      isOverdue={document.isOverdue}
+                      isCompleted={document.status === "Completed"}
+                    />
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                      {document.status}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs text-slate-600 dark:text-slate-300">
@@ -528,8 +537,14 @@ export default function TrackDocumentModal({
                     </span>
                   </p>
                   <p>
-                    <span className="font-semibold text-slate-400">Created Date:</span>{" "}
-                    {formatDateTime(document.createdAt)}
+                    <span className="font-semibold text-slate-400">SLA Due Date:</span>{" "}
+                    {document.dueDate ? (
+                      <span className={document.isOverdue ? "text-rose-600 dark:text-rose-400 font-bold" : "font-semibold text-slate-900 dark:text-slate-100"}>
+                        {formatDateTime(document.dueDate)} {document.isOverdue && "(OVERDUE)"}
+                      </span>
+                    ) : (
+                      "No deadline specified"
+                    )}
                   </p>
                   <p>
                     <span className="font-semibold text-slate-400">Last Updated:</span>{" "}

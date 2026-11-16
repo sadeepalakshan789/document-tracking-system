@@ -14,6 +14,7 @@ const routeStepSchema = new mongoose.Schema(
     receivedAt: { type: Date },
     acceptedAt: { type: Date },
     completedAt: { type: Date },
+    overdueNotified: { type: Boolean, default: false },
   },
   { _id: false }
 );
@@ -74,6 +75,19 @@ const docSchema = new mongoose.Schema(
       enum: ["Submitted", "Reviewed", "Approved", "Delivered", "In Transit", "Completed"],
       default: "In Transit",
     },
+    priority: {
+      type: String,
+      enum: ["Normal", "Urgent", "Confidential"],
+      default: "Normal",
+    },
+    dueDate: {
+      type: Date,
+      default: null,
+    },
+    overdueNotified: {
+      type: Boolean,
+      default: false,
+    },
     sender: { type: senderSchema, required: true },
     route: { type: [routeStepSchema], default: [] },
     currentHolderIndex: { type: Number, default: 0 },
@@ -86,5 +100,6 @@ const docSchema = new mongoose.Schema(
 
 docSchema.index({ "sender.userId": 1 });
 docSchema.index({ "route.userId": 1 });
+docSchema.index({ dueDate: 1, status: 1 });
 
 module.exports = mongoose.model("Document", docSchema);

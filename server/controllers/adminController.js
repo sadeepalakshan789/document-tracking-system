@@ -504,7 +504,7 @@ const getSystemReportData = async (req, res) => {
         { updatedAt: { $gte: startDate, $lte: endDate } },
       ],
     })
-      .select("_id title trackingId status sender currentHolder route currentHolderIndex createdAt updatedAt")
+      .select("_id title trackingId status priority dueDate sender currentHolder route currentHolderIndex createdAt updatedAt")
       .sort({ updatedAt: -1 })
       .lean();
 
@@ -512,7 +512,7 @@ const getSystemReportData = async (req, res) => {
     let isFallback = false;
     if (reportDocs.length === 0) {
       reportDocs = await Document.find()
-        .select("_id title trackingId status sender currentHolder route currentHolderIndex createdAt updatedAt")
+        .select("_id title trackingId status priority dueDate sender currentHolder route currentHolderIndex createdAt updatedAt")
         .sort({ updatedAt: -1 })
         .limit(50)
         .lean();
@@ -530,8 +530,9 @@ const getSystemReportData = async (req, res) => {
     const nowMs = Date.now();
     const delayed = reportDocs.filter((d) => {
       if (d.status === "Completed") return false;
+      const isPastDue = d.dueDate && new Date(d.dueDate).getTime() < nowMs;
       const updatedMs = new Date(d.updatedAt || d.createdAt).getTime();
-      return nowMs - updatedMs > 48 * 3600 * 1000;
+      return isPastDue || nowMs - updatedMs > 48 * 3600 * 1000;
     }).length;
 
     // Users summary
@@ -565,16 +566,22 @@ const getSystemReportData = async (req, res) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
-    const documentLog = reportDocs.map((d) => ({
-      _id: d._id,
-      trackingId: d.trackingId,
-      title: d.title,
-      createdBy: d.sender?.name || "System",
-      currentHolder: d.currentHolder?.name || "None",
-      status: d.status,
-      createdAt: d.createdAt,
-      updatedAt: d.updatedAt,
-    }));
+    const documentLog = reportDocs.map((d) => {
+      const isOverdue = d.status !== "Completed" && !!(d.dueDate && new Date(d.dueDate).getTime() < nowMs);
+      return {
+        _id: d._id,
+        trackingId: d.trackingId,
+        title: d.title,
+        priority: d.priority || "Normal",
+        dueDate: d.dueDate || null,
+        isOverdue,
+        createdBy: d.sender?.name || "System",
+        currentHolder: d.currentHolder?.name || "None",
+        status: d.status,
+        createdAt: d.createdAt,
+        updatedAt: d.updatedAt,
+      };
+    });
 
     return res.status(200).json({
       period,

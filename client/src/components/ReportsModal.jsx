@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { getSystemReportData } from "../services/api";
+import { PriorityBadge, DueDateBadge } from "./PriorityBadge";
 
 const getTodayString = () => {
   const d = new Date();
@@ -251,9 +252,10 @@ export default function ReportsModal({ isOpen, onClose, currentUser }) {
       const docRows = docs.map((d) => [
         d.trackingId || "—",
         d.title || "Untitled",
-        d.createdBy || "System",
+        (d.priority || "Normal").toUpperCase(),
         d.currentHolder || "None",
         d.status || "—",
+        d.dueDate ? `${formatShortDate(d.dueDate)}${d.isOverdue ? " [OVERDUE]" : ""}` : "None",
         formatShortDate(d.updatedAt || d.createdAt),
       ]);
 
@@ -263,13 +265,14 @@ export default function ReportsModal({ isOpen, onClose, currentUser }) {
           [
             "Tracking ID",
             "Document Title",
-            "Sender / Creator",
+            "Priority",
             "Current Holder",
             "Status",
-            "Last Updated",
+            "Due Date",
+            "Updated",
           ],
         ],
-        body: docRows.length > 0 ? docRows : [["No documents found for this period", "", "", "", "", ""]],
+        body: docRows.length > 0 ? docRows : [["No documents found for this period", "", "", "", "", "", ""]],
         theme: "striped",
         headStyles: {
           fillColor: [30, 41, 59],
@@ -283,12 +286,13 @@ export default function ReportsModal({ isOpen, onClose, currentUser }) {
           overflow: "linebreak",
         },
         columnStyles: {
-          0: { fontStyle: "bold", cellWidth: 30 },
-          1: { cellWidth: 42 },
-          2: { cellWidth: 28 },
-          3: { cellWidth: 28 },
-          4: { fontStyle: "bold", cellWidth: 26 },
-          5: { cellWidth: 28 },
+          0: { fontStyle: "bold", cellWidth: 26 },
+          1: { cellWidth: 38 },
+          2: { fontStyle: "bold", cellWidth: 22 },
+          3: { cellWidth: 26 },
+          4: { fontStyle: "bold", cellWidth: 22 },
+          5: { cellWidth: 26 },
+          6: { cellWidth: 22 },
         },
         didDrawPage: (data) => {
           // Page number footer
@@ -364,9 +368,12 @@ export default function ReportsModal({ isOpen, onClose, currentUser }) {
       rows.push([
         "Tracking ID",
         "Document Title",
+        "Priority",
         "Sender / Creator",
         "Current Holder",
         "Status",
+        "Due Date / SLA",
+        "Is Overdue",
         "Created At",
         "Last Updated",
       ]);
@@ -375,9 +382,12 @@ export default function ReportsModal({ isOpen, onClose, currentUser }) {
         rows.push([
           d.trackingId || "",
           d.title || "",
+          d.priority || "Normal",
           d.createdBy || "",
           d.currentHolder || "",
           d.status || "",
+          d.dueDate ? new Date(d.dueDate).toISOString() : "",
+          d.isOverdue ? "YES" : "NO",
           d.createdAt ? new Date(d.createdAt).toISOString() : "",
           d.updatedAt ? new Date(d.updatedAt).toISOString() : "",
         ]);
@@ -726,22 +736,23 @@ export default function ReportsModal({ isOpen, onClose, currentUser }) {
                   <tr>
                     <th className="py-2.5 px-3">Tracking ID</th>
                     <th className="py-2.5 px-3">Document Title</th>
-                    <th className="py-2.5 px-3">Sender / Creator</th>
+                    <th className="py-2.5 px-3">Priority</th>
                     <th className="py-2.5 px-3">Current Holder</th>
                     <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3">SLA Due Date</th>
                     <th className="py-2.5 px-3">Last Updated</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {loading ? (
                     <tr>
-                      <td colSpan="6" className="py-8 text-center text-slate-400">
+                      <td colSpan="7" className="py-8 text-center text-slate-400">
                         <span className="inline-block animate-spin mr-2">⟳</span> Loading report data...
                       </td>
                     </tr>
                   ) : filteredDocuments.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="py-8 text-center text-slate-400">
+                      <td colSpan="7" className="py-8 text-center text-slate-400">
                         No documents found matching the selected timeframe and filter.
                       </td>
                     </tr>
@@ -771,8 +782,8 @@ export default function ReportsModal({ isOpen, onClose, currentUser }) {
                         <td className="py-2.5 px-3 font-medium text-slate-900 dark:text-slate-100 max-w-xs truncate">
                           {doc.title}
                         </td>
-                        <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                          {doc.createdBy}
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <PriorityBadge priority={doc.priority} showNormal={true} />
                         </td>
                         <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
                           {doc.currentHolder}
@@ -789,6 +800,14 @@ export default function ReportsModal({ isOpen, onClose, currentUser }) {
                           >
                             {doc.status}
                           </span>
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <DueDateBadge
+                            dueDate={doc.dueDate}
+                            isOverdue={doc.isOverdue}
+                            isCompleted={doc.status === "Completed"}
+                          />
+                          {!doc.dueDate && <span className="text-slate-400 text-[10px]">None</span>}
                         </td>
                         <td className="py-2.5 px-3 text-[11px] text-slate-400 dark:text-slate-500 whitespace-nowrap">
                           {formatDate(doc.updatedAt || doc.createdAt)}
