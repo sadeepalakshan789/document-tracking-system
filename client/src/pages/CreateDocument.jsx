@@ -77,7 +77,8 @@ export default function CreateDocument() {
     return filtered.filter(
       (user) =>
         user.name.toLowerCase().includes(searchTerm) ||
-        user.email.toLowerCase().includes(searchTerm)
+        user.email.toLowerCase().includes(searchTerm) ||
+        String(user.position || "").toLowerCase().includes(searchTerm)
     );
   }, [availableUsers, currentUser, recipientSearch]);
 
@@ -374,7 +375,7 @@ export default function CreateDocument() {
                           onChange={() => handleCheckboxToggle(user._id)}
                           className="rounded text-blue-600 focus:ring-0 cursor-pointer"
                         />
-                        <span className="truncate">{user.name} ({user.email})</span>
+                        <span className="truncate">{user.position || user.name} ({user.name})</span>
                       </label>
                     ))
                   )}

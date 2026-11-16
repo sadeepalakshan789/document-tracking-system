@@ -820,7 +820,12 @@ const getDocumentFilePreview = async (req, res) => {
 
 const downloadDocumentFile = async (req, res) => {
   try {
-    const document = await Document.findOne({ trackingId: req.params.id });
+    const document = req.document || await Document.findOne({
+      $or: [
+        { trackingId: req.params.id },
+        ...(mongoose.isValidObjectId(req.params.id) ? [{ _id: req.params.id }] : [])
+      ]
+    });
     if (!document) {
       return res.status(404).json({ message: "Document not found" });
     }
@@ -829,18 +834,18 @@ const downloadDocumentFile = async (req, res) => {
       return res.status(403).json({ message: "You are not authorized to download this file" });
     }
 
-    if (!document.file?.storedFileName) {
+    const storedName = document.file?.storedFileName || (document.file?.filePath ? path.basename(document.file.filePath) : null);
+    if (!storedName) {
       return res.status(404).json({ message: "No file attached to this document" });
     }
 
-    const filePath = resolveStoredFilePath(document.file.storedFileName);
+    const filePath = resolveStoredFilePath(storedName);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: "File not found on disk" });
     }
 
-    res.setHeader("Content-Type", document.file.mimeType || "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${document.file.originalFileName}"`);
-    return res.sendFile(filePath);
+    const filename = document.file.originalFileName || "document";
+    return res.download(filePath, filename);
   } catch (error) {
     console.error("downloadDocumentFile error:", error.message);
     return res.status(500).json({ message: "Failed to download document file" });
@@ -849,7 +854,12 @@ const downloadDocumentFile = async (req, res) => {
 
 const getDocumentVersions = async (req, res) => {
   try {
-    const document = await Document.findOne({ trackingId: req.params.id });
+    const document = req.document || await Document.findOne({
+      $or: [
+        { trackingId: req.params.id },
+        ...(mongoose.isValidObjectId(req.params.id) ? [{ _id: req.params.id }] : [])
+      ]
+    });
     if (!document) {
       return res.status(404).json({ message: "Document not found" });
     }
@@ -858,9 +868,16 @@ const getDocumentVersions = async (req, res) => {
       return res.status(403).json({ message: "You are not authorized to access file versions" });
     }
 
+    if (!document.file?.storedFileName && !document.file?.originalFileName) {
+      return res.json({ versions: [] });
+    }
+
+    const currentVerNumber = Number(document.file?.currentVersion) || 1;
+    const previousVersions = Array.isArray(document.file?.versions) ? document.file.versions : [];
+
     const versions = [
       {
-        versionNumber: document.file?.currentVersion || 1,
+        versionNumber: currentVerNumber,
         originalFileName: document.file?.originalFileName,
         storedFileName: document.file?.storedFileName,
         filePath: document.file?.filePath,
@@ -870,7 +887,7 @@ const getDocumentVersions = async (req, res) => {
         uploadedAt: document.file?.uploadedAt,
         uploadedBy: document.file?.uploadedBy,
       },
-      ...(document.file?.versions || []),
+      ...previousVersions,
     ];
 
     return res.json({ versions });
@@ -882,7 +899,12 @@ const getDocumentVersions = async (req, res) => {
 
 const downloadDocumentVersion = async (req, res) => {
   try {
-    const document = await Document.findOne({ trackingId: req.params.id });
+    const document = req.document || await Document.findOne({
+      $or: [
+        { trackingId: req.params.id },
+        ...(mongoose.isValidObjectId(req.params.id) ? [{ _id: req.params.id }] : [])
+      ]
+    });
     if (!document) {
       return res.status(404).json({ message: "Document not found" });
     }
@@ -892,23 +914,34 @@ const downloadDocumentVersion = async (req, res) => {
     }
 
     const requestedVersion = Number(req.params.versionNumber);
-    const currentVersion = document.file?.currentVersion || 1;
-    const matchingVersion = requestedVersion === currentVersion
-      ? document.file
-      : (document.file?.versions || []).find((version) => version.versionNumber === requestedVersion);
+    const currentVersion = Number(document.file?.currentVersion) || 1;
+    let matchingVersion = null;
 
-    if (!matchingVersion?.storedFileName) {
+    if (!isNaN(requestedVersion) && requestedVersion === currentVersion) {
+      matchingVersion = document.file;
+    } else {
+      matchingVersion = (document.file?.versions || []).find(
+        (version) =>
+          Number(version.versionNumber) === requestedVersion ||
+          String(version._id) === String(req.params.versionNumber)
+      );
+      if (!matchingVersion && (requestedVersion === 1 || isNaN(requestedVersion) || !document.file?.versions?.length)) {
+        matchingVersion = document.file;
+      }
+    }
+
+    const storedName = matchingVersion?.storedFileName || (matchingVersion?.filePath ? path.basename(matchingVersion.filePath) : null);
+    if (!storedName) {
       return res.status(404).json({ message: "Requested version was not found" });
     }
 
-    const filePath = resolveStoredFilePath(matchingVersion.storedFileName);
+    const filePath = resolveStoredFilePath(storedName);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: "Requested version file was not found on disk" });
     }
 
-    res.setHeader("Content-Type", matchingVersion.mimeType || "application/octet-stream");
-    res.setHeader("Content-Disposition", `attachment; filename="${matchingVersion.originalFileName}"`);
-    return res.sendFile(filePath);
+    const filename = matchingVersion.originalFileName || document.file?.originalFileName || "document";
+    return res.download(filePath, filename);
   } catch (error) {
     console.error("downloadDocumentVersion error:", error.message);
     return res.status(500).json({ message: "Failed to download document version" });

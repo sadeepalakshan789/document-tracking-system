@@ -1,10 +1,14 @@
 const Document = require("../models/Document");
+const mongoose = require("mongoose");
 
 const isSameId = (a, b) => String(a) === String(b);
 
 const loadDocument = async (req, res, next) => {
   try {
-    const document = await Document.findOne({ trackingId: req.params.id });
+    const query = mongoose.isValidObjectId(req.params.id)
+      ? { $or: [{ trackingId: req.params.id }, { _id: req.params.id }] }
+      : { trackingId: req.params.id };
+    const document = await Document.findOne(query);
     if (!document) {
       return res.status(404).json({ message: "Document not found" });
     }

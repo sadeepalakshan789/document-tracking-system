@@ -356,24 +356,16 @@ const getCurrentUser = async (req, res) => {
 const updateCurrentUser = async (req, res) => {
   try {
     const {
-      name = "",
-      email = "",
-      position = "",
+      name,
+      email,
+      position,
       currentPassword = "",
       newPassword = "",
       confirmNewPassword = "",
-      phone = "",
+      phone,
       emailAlerts,
       inAppNotifications,
     } = req.body;
-
-    const trimmedName = name.trim();
-    const trimmedPosition = position.trim();
-    const normalizedEmail = normalizeEmail(email);
-
-    if (!trimmedName || !normalizedEmail || !trimmedPosition) {
-      return res.status(400).json({ message: "Name, email, and position are required" });
-    }
 
     // password is select:false – include it so we can verify current password
     const user = await User.findById(req.user.id).select("+password");
@@ -381,15 +373,44 @@ const updateCurrentUser = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Partial profile updates with existing saved values as fallbacks
+    if (typeof name === "string" && name.trim()) {
+      user.name = name.trim();
+    }
+
+    // Role check: Normal Users cannot change position, only Admin / Super Admin can
+    const effectiveRole = getEffectiveRole(user);
+    const isAdmin = ["admin", "super-admin", "superadmin", "super_admin"].includes(
+      String(effectiveRole || user.role || "").toLowerCase()
+    );
+
+    if (isAdmin && typeof position === "string" && position.trim()) {
+      user.position = position.trim();
+    }
+
+    if (phone !== undefined) {
+      user.phone = typeof phone === "string" ? phone.trim() : "";
+    }
+
+    if (emailAlerts !== undefined) {
+      user.emailAlerts = !!emailAlerts;
+    }
+    if (inAppNotifications !== undefined) {
+      user.inAppNotifications = !!inAppNotifications;
+    }
+
     const wantsPasswordChange = !!(currentPassword || newPassword || confirmNewPassword);
     if (wantsPasswordChange) {
-      if (!currentPassword || !newPassword || !confirmNewPassword) {
-        return res.status(400).json({
-          message: "Current password, new password, and confirmation are required",
-        });
+      if (!currentPassword) {
+        return res.status(400).json({ message: "Current password is required" });
       }
-
-      if (newPassword !== confirmNewPassword) {
+      if (!newPassword) {
+        return res.status(400).json({ message: "New password is required" });
+      }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: "New password must be at least 6 characters" });
+      }
+      if (confirmNewPassword && newPassword !== confirmNewPassword) {
         return res.status(400).json({ message: "New password and confirmation do not match" });
       }
 
@@ -398,23 +419,15 @@ const updateCurrentUser = async (req, res) => {
         return res.status(400).json({ message: "Current password is incorrect" });
       }
 
-      // Assign plain-text password – the pre-save hook in User.js will
-      // hash it automatically when user.save() is called below.
+      if (currentPassword === newPassword) {
+        return res.status(400).json({ message: "New password must be different from current password" });
+      }
+
+      // Assign plain-text password – pre-save hook in User.js hashes it automatically
       user.password = newPassword;
     }
 
-    user.name = trimmedName;
-    user.phone = phone.trim();
-    if (emailAlerts !== undefined) {
-      user.emailAlerts = !!emailAlerts;
-    }
-    if (inAppNotifications !== undefined) {
-      user.inAppNotifications = !!inAppNotifications;
-    }
-
     await user.save();
-
-    const effectiveRole = getEffectiveRole(user);
 
     return res.json({
       _id: user._id,
@@ -428,12 +441,12 @@ const updateCurrentUser = async (req, res) => {
       emailAlerts: user.emailAlerts !== undefined ? user.emailAlerts : true,
       inAppNotifications: user.inAppNotifications !== undefined ? user.inAppNotifications : true,
       message: wantsPasswordChange
-        ? "Profile and password updated successfully."
-        : "Profile updated successfully.",
+        ? "Password and profile updated successfully."
+        : "Settings saved successfully.",
     });
   } catch (error) {
     console.error("updateCurrentUser error:", error.message);
-    return res.status(500).json({ message: "Failed to update user profile" });
+    return res.status(500).json({ message: error.message || "Failed to update user profile" });
   }
 };
 
@@ -656,8 +669,8 @@ const getUserActivityByAdmin = async (req, res) => {
     routeDocuments.forEach((document) => {
       const matchingSteps = Array.isArray(document.route)
         ? document.route.filter(
-            (step) => String(step.userId) === String(userObjectId)
-          )
+          (step) => String(step.userId) === String(userObjectId)
+        )
         : [];
 
       matchingSteps.forEach((step, stepIndex) => {

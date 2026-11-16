@@ -90,6 +90,12 @@ export const adminUpdateUser = (userId, data) => API.put(`/admin/users/${userId}
 /** GET /api/admin/users/:userId/activity – fetch document activity for a user (super-admin only) */
 export const adminGetUserActivity = (userId) => API.get(`/admin/users/${userId}/activity`);
 
+/** PUT /api/admin/documents/:id/reassign – reassign workflow document holder (admin/super-admin) */
+export const adminReassignDocument = (id, data) => API.put(`/admin/documents/${id}/reassign`, data);
+
+/** GET /api/admin/reports/data – fetch aggregated report data for periods */
+export const getSystemReportData = (params) => API.get("/admin/reports/data", { params });
+
 export const getAdminSettings = () => API.get("/admin/settings");
 export const updateAdminSettings = (data) => API.put("/admin/settings", data);
 export const getAuditLogs = () => API.get("/admin/audit-logs");

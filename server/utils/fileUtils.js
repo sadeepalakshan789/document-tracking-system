@@ -59,7 +59,8 @@ const buildStoredFileName = (originalFilename = "") => {
 
 const resolveStoredFilePath = (storedFileName = "") => {
   const uploadRoot = getUploadRoot();
-  const resolvedPath = path.resolve(uploadRoot, storedFileName || "");
+  const cleanName = path.basename(storedFileName || "");
+  const resolvedPath = path.resolve(uploadRoot, cleanName);
   if (!resolvedPath.startsWith(uploadRoot)) {
     throw new Error("Invalid file path");
   }

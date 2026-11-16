@@ -20,6 +20,8 @@ const {
   getUserById,
   updateUser,
   getUserDocumentActivity,
+  reassignDocument,
+  getSystemReportData,
 } = require("../controllers/adminController");
 
 // ─────────────────────────────────────────────
@@ -124,6 +126,30 @@ router.put(
   protect,
   authorizeRoles("super-admin", "admin", "SUPER_ADMIN"),
   updateUser
+);
+
+/**
+ * PUT /api/admin/documents/:id/reassign
+ * Reassign an active document workflow to a new user holder.
+ * Access: super-admin and admin
+ */
+router.put(
+  "/documents/:id/reassign",
+  protect,
+  authorizeRoles("super-admin", "admin", "SUPER_ADMIN"),
+  reassignDocument
+);
+
+/**
+ * GET /api/admin/reports/data
+ * Fetch aggregated workflow & system report data for daily, weekly, and monthly periods.
+ * Access: super-admin & admin
+ */
+router.get(
+  "/reports/data",
+  protect,
+  authorizeRoles("super-admin", "admin", "SUPER_ADMIN"),
+  getSystemReportData
 );
 
 /**

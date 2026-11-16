@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   adminGetAllUsers,
-  adminCreateAdmin,
   adminCreateUser,
   adminToggleStatus,
   adminDeleteUser,
@@ -11,9 +10,11 @@ import {
   uploadAvatar,
 } from "../services/api";
 import { getUserId } from "../utils/auth";
-import SettingsModal from "../components/SettingsModal";
+import UserSettingsModal from "../components/UserSettingsModal";
+import AllAccountsModal from "../components/AllAccountsModal";
+import SupportInboxModal from "../components/SupportInboxModal";
+import ReportsModal from "../components/ReportsModal";
 import { connectSocket } from "../services/socket";
-import SupportInbox from "../components/SupportInbox";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Helper sub-components
@@ -45,42 +46,6 @@ function Alert({ type, message, onClose }) {
   );
 }
 
-/** Pill badge for role */
-function RoleBadge({ role }) {
-  const normalizedRole = role ? role.toUpperCase().replace(/-/g, "_") : "NORMAL_USER";
-  
-  const isVioletRole = ["SUPER_ADMIN", "SUB_ADMIN", "ADMIN"].includes(normalizedRole);
-  
-  if (isVioletRole) {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 border border-violet-300 dark:bg-violet-950/60 dark:text-violet-300 dark:border-violet-800">
-        {normalizedRole}
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-300 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800">
-      {normalizedRole}
-    </span>
-  );
-}
-
-/** Pill badge for status */
-function StatusBadge({ status }) {
-  return status === "active" ? (
-    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-      Active
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800">
-      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-      Blocked
-    </span>
-  );
-}
-
 const formatRole = (role) => {
   if (!role) return "Super Admin";
   return role.split(/[-_]/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
@@ -94,9 +59,8 @@ function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, danger = t
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-fade-in">
         <div className="flex items-center gap-3 mb-4">
           <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-              danger ? "bg-red-500/20" : "bg-yellow-500/20"
-            }`}
+            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${danger ? "bg-red-500/20" : "bg-yellow-500/20"
+              }`}
           >
             <svg
               className={`w-5 h-5 ${danger ? "text-red-500" : "text-yellow-500"}`}
@@ -124,11 +88,10 @@ function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, danger = t
           </button>
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition text-white ${
-              danger
-                ? "bg-red-600 hover:bg-red-500"
-                : "bg-yellow-600 hover:bg-yellow-500"
-            }`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition text-white ${danger
+              ? "bg-red-600 hover:bg-red-500"
+              : "bg-yellow-600 hover:bg-yellow-500"
+              }`}
           >
             Confirm
           </button>
@@ -150,7 +113,6 @@ export default function SuperAdminDashboard() {
   const [currentUser, setCurrentUser] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [toast, setToast] = useState({ show: false, type: "", message: "" });
-  const [activeTab, setActiveTab] = useState("accounts");
   const [unreadSupportCount, setUnreadSupportCount] = useState(0);
 
   useEffect(() => {
@@ -260,13 +222,21 @@ export default function SuperAdminDashboard() {
     onConfirm: null,
   });
 
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-
   const [positions, setPositions] = useState([]);
   const [loadingPositions, setLoadingPositions] = useState(false);
 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isAllAccountsModalOpen, setIsAllAccountsModalOpen] = useState(false);
+  const [isSupportInboxModalOpen, setIsSupportInboxModalOpen] = useState(false);
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("currentUser");
+    localStorage.removeItem("user");
+    window.dispatchEvent(new Event("authChange"));
+    navigate("/login");
+  };
 
   const fetchUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -343,11 +313,10 @@ export default function SuperAdminDashboard() {
     setConfirmDialog({
       open: true,
       title: `${action === "block" ? "Block" : "Unblock"} User`,
-      message: `Are you sure you want to ${action} "${user.name}"? ${
-        action === "block"
-          ? "They will immediately lose access to the system."
-          : "They will regain access to the system."
-      }`,
+      message: `Are you sure you want to ${action} "${user.name}"? ${action === "block"
+        ? "They will immediately lose access to the system."
+        : "They will regain access to the system."
+        }`,
       danger: action === "block",
       onConfirm: () => executeToggleStatus(user._id, user.name, action),
     });
@@ -405,16 +374,6 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase());
-    
-    // Capitalization agnostic filter
-    const matchesRole = roleFilter === "all" || (u.role && u.role.toUpperCase().replace(/-/g, "_") === roleFilter.toUpperCase());
-    return matchesSearch && matchesRole;
-  });
-
   const stats = {
     total: users.length,
     admins: users.filter((u) => u.role && ["ADMIN", "SUB_ADMIN", "SUPER_ADMIN"].includes(u.role.toUpperCase().replace(/-/g, "_"))).length,
@@ -441,8 +400,8 @@ export default function SuperAdminDashboard() {
               ) : currentUser?.avatar ? (
                 <img
                   src={
-                    currentUser.avatar.startsWith("data:") 
-                      ? currentUser.avatar 
+                    currentUser.avatar.startsWith("data:")
+                      ? currentUser.avatar
                       : `http://localhost:5000/uploads/${currentUser.avatar}`
                   }
                   alt="Profile Avatar"
@@ -477,324 +436,284 @@ export default function SuperAdminDashboard() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsSettingsModalOpen(true)}
-              title="Settings"
-              className="p-2 rounded-lg text-indigo-200 hover:text-white hover:bg-slate-800/60 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
-            <button
-              onClick={() => {
-                localStorage.removeItem("token");
-                localStorage.removeItem("currentUser");
-                localStorage.removeItem("user");
-                window.dispatchEvent(new Event("authChange"));
-                navigate("/login");
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-red-300 hover:text-white hover:bg-red-600/80 transition"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              Logout
-            </button>
+          {/* System Branding Title */}
+          <div className="text-right">
+            <h2 className="text-sm sm:text-base md:text-lg font-bold text-white tracking-tight leading-tight">
+              Document Workflow Admin Dashboard
+            </h2>
+            <p className="text-[11px] font-medium text-indigo-300/80 leading-tight">
+              by <span className="font-semibold text-indigo-200">CodeBloom</span>
+            </p>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Admin Management</h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Manage admin accounts, user statuses, and access control across the Document Tracking System.</p>
-        </div>
-
-        <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-px">
-          <button
-            onClick={() => setActiveTab("accounts")}
-            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-              activeTab === "accounts"
-                ? "border-indigo-600 text-indigo-600 dark:border-indigo-500 dark:text-indigo-400"
-                : "border-transparent text-slate-550 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
-            }`}
-          >
-            Accounts Manager
-          </button>
-          <button
-            onClick={() => setActiveTab("support")}
-            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2 transition-all flex items-center gap-1.5 ${
-              activeTab === "support"
-                ? "border-indigo-600 text-indigo-600 dark:border-indigo-500 dark:text-indigo-400"
-                : "border-transparent text-slate-550 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
-            }`}
-          >
-            Support Inbox
-            {unreadSupportCount > 0 && (
-              <span className="bg-indigo-600 text-white rounded-full text-[9px] px-1.5 py-0.5 font-bold animate-pulse">
-                {unreadSupportCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {activeTab === "accounts" && (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            {
-              label: "Total Accounts",
-              value: stats.total,
-              color: "text-indigo-600 dark:text-indigo-400",
-              accent: "border-l-4 border-indigo-500",
-              bgColor: "bg-indigo-50 dark:bg-indigo-950/20",
-              icon: (
-                <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              ),
-            },
-            {
-              label: "Super-Admins",
-              value: stats.admins,
-              color: "text-violet-600 dark:text-violet-400",
-              accent: "border-l-4 border-violet-500",
-              bgColor: "bg-violet-50 dark:bg-violet-950/20",
-              icon: (
-                <svg className="w-5 h-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              ),
-            },
-            {
-              label: "Regular Users",
-              value: stats.regularUsers,
-              color: "text-emerald-600 dark:text-emerald-400",
-              accent: "border-l-4 border-emerald-500",
-              bgColor: "bg-emerald-50 dark:bg-emerald-950/20",
-              icon: (
-                <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              ),
-            },
-            {
-              label: "Blocked",
-              value: stats.blocked,
-              color: "text-rose-600 dark:text-rose-400",
-              accent: "border-l-4 border-rose-500",
-              bgColor: "bg-rose-50 dark:bg-rose-950/20",
-              icon: (
-                <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              ),
-            },
-          ].map((s) => (
-            <div key={s.label} className={`bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex items-center justify-between ${s.accent}`}>
-              <div className="flex flex-col gap-1">
-                <span className={`text-2xl font-black ${s.color}`}>{s.value}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold tracking-wide uppercase">{s.label}</span>
-              </div>
-              <div className={`p-2 rounded-lg ${s.bgColor} shrink-0`}>
-                {s.icon}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <section className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm transition-colors duration-200">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-8 h-8 bg-indigo-500/10 border border-indigo-500/20 dark:border-indigo-500/30 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Create New User / Admin</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">The new account will be pre-verified and immediately active.</p>
-            </div>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-px">
+          <div className="flex gap-2">
+            <span className="px-4 py-2 text-xs font-bold uppercase tracking-wider border-b-2 border-indigo-600 text-indigo-600 dark:border-indigo-500 dark:text-indigo-400">
+              Accounts Manager
+            </span>
           </div>
+        </div>
 
-          <Alert type={formAlert.type} message={formAlert.message} onClose={() => setFormAlert({ type: "", message: "" })} />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {[
+                {
+                  label: "Total Accounts",
+                  value: stats.total,
+                  color: "text-indigo-600 dark:text-indigo-400",
+                  accent: "border-l-4 border-indigo-500",
+                  bgColor: "bg-indigo-50 dark:bg-indigo-950/20",
+                  icon: (
+                    <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  ),
+                },
+                {
+                  label: "Super-Admins",
+                  value: stats.admins,
+                  color: "text-violet-600 dark:text-violet-400",
+                  accent: "border-l-4 border-violet-500",
+                  bgColor: "bg-violet-50 dark:bg-violet-950/20",
+                  icon: (
+                    <svg className="w-5 h-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  ),
+                },
+                {
+                  label: "Regular Users",
+                  value: stats.regularUsers,
+                  color: "text-emerald-600 dark:text-emerald-400",
+                  accent: "border-l-4 border-emerald-500",
+                  bgColor: "bg-emerald-50 dark:bg-emerald-950/20",
+                  icon: (
+                    <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  ),
+                },
+                {
+                  label: "Blocked",
+                  value: stats.blocked,
+                  color: "text-rose-600 dark:text-rose-400",
+                  accent: "border-l-4 border-rose-500",
+                  bgColor: "bg-rose-50 dark:bg-rose-950/20",
+                  icon: (
+                    <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  ),
+                },
+              ].map((s) => (
+                <div key={s.label} className={`bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex items-center justify-between ${s.accent}`}>
+                  <div className="flex flex-col gap-1">
+                    <span className={`text-2xl font-black ${s.color}`}>{s.value}</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold tracking-wide uppercase">{s.label}</span>
+                  </div>
+                  <div className={`p-2 rounded-lg ${s.bgColor} shrink-0`}>
+                    {s.icon}
+                  </div>
+                </div>
+              ))}
+            </div>
 
-          <form onSubmit={handleCreateUser} noValidate>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex flex-col">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Full Name <span className="text-rose-500">*</span></label>
-                <input type="text" placeholder="e.g. Saman Perera" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
-              </div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* CONTROL PANEL */}
+              <section className="lg:col-span-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-2xl p-6 shadow-sm space-y-4">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Control Panel</h2>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Quick actions for your account.</p>
+                </div>
 
-              <div className="flex flex-col">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Email Address <span className="text-rose-500">*</span></label>
-                <input type="email" autoComplete="new-email" placeholder="user@example.com" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
-              </div>
+                <div className="space-y-2 mt-4">
+                  {/* All Accounts */}
+                  <button
+                    type="button"
+                    onClick={() => setIsAllAccountsModalOpen(true)}
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group cursor-pointer"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/20 group-hover:scale-105 transition-transform shrink-0">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </span>
+                      <span>
+                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          All Accounts
+                          <span className="inline-flex min-w-[16px] h-4 px-1.5 items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-bold leading-none font-sans">
+                            {users.length}
+                          </span>
+                        </span>
+                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">View and manage all user &amp; admin accounts</span>
+                      </span>
+                    </span>
+                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
+                  </button>
 
-              <div className="flex flex-col">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Password <span className="text-rose-500">*</span></label>
-                <div className="relative">
-                  <input type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Min 6 characters" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 pr-10 text-sm focus:outline-none transition" disabled={formLoading} />
-                  <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-slate-400 hover:text-slate-600 transition pointer-events-auto" tabIndex={-1}>
-                    {showPassword ? (
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                    )}
+                  {/* Support Inbox */}
+                  <button
+                    type="button"
+                    onClick={() => setIsSupportInboxModalOpen(true)}
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group cursor-pointer"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/20 group-hover:scale-105 transition-transform shrink-0">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                      </span>
+                      <span>
+                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          Support Inbox
+                          {unreadSupportCount > 0 && (
+                            <span className="inline-flex min-w-[16px] h-4 px-1.5 items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-bold leading-none font-sans animate-pulse">
+                              {unreadSupportCount > 99 ? "99+" : unreadSupportCount}
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">View and manage user support requests</span>
+                      </span>
+                    </span>
+                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
+                  </button>
+
+                  {/* Settings */}
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsModalOpen(true)}
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group cursor-pointer"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/20 group-hover:scale-105 transition-transform shrink-0">
+                        S
+                      </span>
+                      <span>
+                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100">Settings</span>
+                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">Profile and security</span>
+                      </span>
+                    </span>
+                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
+                  </button>
+
+                  {/* Generate Reports */}
+                  <button
+                    type="button"
+                    onClick={() => setIsReportsModalOpen(true)}
+                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group cursor-pointer"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold border border-amber-500/20 group-hover:scale-105 transition-transform shrink-0">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        </svg>
+                      </span>
+                      <span>
+                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100">
+                          Generate Reports
+                        </span>
+                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">
+                          Download Daily, Weekly &amp; Monthly system reports
+                        </span>
+                      </span>
+                    </span>
+                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
+                  </button>
+
+                  {/* Logout */}
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-between rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-955/20 p-3 text-left hover:bg-red-100 dark:hover:bg-red-950/40 transition-all duration-300 group cursor-pointer"
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className="w-9 h-9 rounded-xl bg-red-500/20 text-red-500 dark:text-red-400 flex items-center justify-center font-bold border border-red-500/20 group-hover:scale-105 transition-transform shrink-0">
+                        L
+                      </span>
+                      <span>
+                        <span className="block font-semibold text-xs text-red-700 dark:text-red-400">Logout</span>
+                        <span className="block text-[10px] text-red-500 dark:text-red-400">Sign out safely</span>
+                      </span>
+                    </span>
+                    <span className="text-red-600 dark:text-red-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
                   </button>
                 </div>
-              </div>
+              </section>
 
-              <div className="flex flex-col">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Position <span className="text-rose-500">*</span></label>
-                <select value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading || loadingPositions}>
-                  <option value="" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">{loadingPositions ? "Loading positions..." : "Select Position"}</option>
-                  {positions && positions.length > 0 && positions.map((p) => (
-                    <option key={p} value={p} className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">{p}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Create New User / Admin */}
+              <section className="lg:col-span-8 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm transition-colors duration-200">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-8 h-8 bg-indigo-500/10 border border-indigo-500/20 dark:border-indigo-500/30 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900 dark:text-white">Create New User / Admin</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">The new account will be pre-verified and immediately active.</p>
+                  </div>
+                </div>
 
-              <div className="flex flex-col">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Role <span className="text-rose-500">*</span></label>
-                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading}>
-                  <option value="NORMAL_USER" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Normal User</option>
-                  <option value="SUB_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Sub Admin</option>
-                  <option value="SUPER_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Super Admin</option>
-                </select>
-              </div>
+                <Alert type={formAlert.type} message={formAlert.message} onClose={() => setFormAlert({ type: "", message: "" })} />
 
-              <div className="flex flex-col justify-end">
-                <button type="submit" disabled={formLoading} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold shadow-md shadow-indigo-500/20 rounded-lg py-2.5 px-5 active:scale-95 disabled:opacity-60 text-sm transition-all h-[42px] border border-transparent">
-                  {formLoading ? "Creating…" : "Create User / Admin"}
-                </button>
-              </div>
+                <form onSubmit={handleCreateUser} noValidate>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex flex-col">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Full Name <span className="text-rose-500">*</span></label>
+                      <input type="text" placeholder="e.g. Saman Perera" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
+                    </div>
+
+                    <div className="flex flex-col">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Email Address <span className="text-rose-500">*</span></label>
+                      <input type="email" autoComplete="new-email" placeholder="user@example.com" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
+                    </div>
+
+                    <div className="flex flex-col">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Password <span className="text-rose-500">*</span></label>
+                      <div className="relative">
+                        <input type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Min 6 characters" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 pr-10 text-sm focus:outline-none transition" disabled={formLoading} />
+                        <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-slate-400 hover:text-slate-600 transition pointer-events-auto" tabIndex={-1}>
+                          {showPassword ? (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Position <span className="text-rose-500">*</span></label>
+                      <select value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading || loadingPositions}>
+                        <option value="" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">{loadingPositions ? "Loading positions..." : "Select Position"}</option>
+                        {positions && positions.length > 0 && positions.map((p) => (
+                          <option key={p} value={p} className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">{p}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Role <span className="text-rose-500">*</span></label>
+                      <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading}>
+                        <option value="NORMAL_USER" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Normal User</option>
+                        <option value="SUB_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Sub Admin</option>
+                        <option value="SUPER_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Super Admin</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col justify-end">
+                      <button type="submit" disabled={formLoading} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold shadow-md shadow-indigo-500/20 rounded-lg py-2.5 px-5 active:scale-95 disabled:opacity-60 text-sm transition-all h-[42px] border border-transparent">
+                        {formLoading ? "Creating…" : "Create User / Admin"}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </section>
             </div>
-          </form>
-        </section>
-
-        <section className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-colors duration-200">
-          <div className="px-6 pt-6 pb-4 flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex-1">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">All Accounts</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{filteredUsers.length} of {users.length} accounts shown</p>
-            </div>
-
-            <div className="relative w-full sm:w-56">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
-              <input type="text" placeholder="Search name or email…" value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg pl-9 pr-3.5 py-2 text-sm focus:outline-none transition" />
-            </div>
-
-            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg px-3.5 py-2 text-sm focus:outline-none transition">
-              <option value="all" className="bg-white dark:bg-slate-800">All Roles</option>
-              <option value="SUPER_ADMIN" className="bg-white dark:bg-slate-800">Super Admin</option>
-              <option value="SUB_ADMIN" className="bg-white dark:bg-slate-800">Sub Admin</option>
-              <option value="NORMAL_USER" className="bg-white dark:bg-slate-800">User</option>
-            </select>
-
-            <button onClick={fetchUsers} disabled={loadingUsers} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-              <svg className={`w-4 h-4 ${loadingUsers ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
-              Refresh
-            </button>
-          </div>
-
-          {tableAlert.message && <div className="px-6"><Alert type={tableAlert.type} message={tableAlert.message} onClose={() => setTableAlert({ type: "", message: "" })} /></div>}
-
-          {loadingUsers ? (
-            <div className="px-6 pb-6 space-y-3">
-              {[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-slate-100 dark:bg-slate-800/50 rounded-lg animate-pulse" />)}
-            </div>
-          ) : usersError ? (
-            <div className="px-6 pb-8 text-center"><p className="text-red-500 dark:text-red-400 text-sm">{usersError}</p><button onClick={fetchUsers} className="mt-3 text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Try again</button></div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="px-6 pb-8 text-center text-slate-500 text-sm">{search || roleFilter !== "all" ? "No accounts match your filters." : "No accounts found."}</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-t border-b border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/60">
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider hidden sm:table-cell">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Role</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
-                  {filteredUsers.map((user) => {
-                    const isSelf = user._id === currentUserId;
-                    const isSuperAdminRow = user.role && user.role.toUpperCase().replace(/-/g, "_") === "SUPER_ADMIN";
-                    const actionsDisabled = isSelf || isSuperAdminRow;
-                    const isActionLoading = actionLoadingId === user._id;
-
-                    return (
-                      <tr
-                        key={user._id}
-                        onClick={() => navigate(`/admin/users/${user._id}`)}
-                        className={`group cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-800/50 transition-colors ${isSelf ? "bg-indigo-50/50 dark:bg-indigo-950/20" : ""}`}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-sm">
-                              {user.name.charAt(0).toUpperCase()}
-                            </div>
-                            <div>
-                              <p className="font-medium text-slate-900 dark:text-white leading-tight">
-                                {user.name}
-                                {isSelf && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-300 font-medium">You</span>}
-                              </p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 sm:hidden">{user.email}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 hidden sm:table-cell">{user.email}</td>
-                        <td className="px-6 py-4"><RoleBadge role={user.role} /></td>
-                        <td className="px-6 py-4"><StatusBadge status={user.status || "active"} /></td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); requestToggleStatus(user); }}
-                              disabled={actionsDisabled || isActionLoading}
-                              title={isSelf ? "You cannot change your own status" : isSuperAdminRow ? "Super-admin accounts cannot be blocked" : user.status === "active" ? "Block this user" : "Unblock this user"}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${actionsDisabled ? "opacity-30 cursor-not-allowed bg-slate-200 dark:bg-slate-800 text-slate-400" : user.status === "active" ? "bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/60" : "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-900/60"}`}
-                            >
-                              {isActionLoading ? (
-                                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" /></svg>
-                              ) : user.status === "active" ? (
-                                <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>Block</>
-                              ) : (
-                                <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>Unblock</>
-                              )}
-                            </button>
-
-                            <button
-                              onClick={(e) => { e.stopPropagation(); requestDelete(user); }}
-                              disabled={actionsDisabled || isActionLoading}
-                              title={isSelf ? "You cannot delete your own account" : isSuperAdminRow ? "Super-admin accounts cannot be deleted" : "Delete this user"}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${actionsDisabled ? "opacity-30 cursor-not-allowed bg-slate-200 dark:bg-slate-800 text-slate-400" : "bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800 hover:bg-rose-200 dark:hover:bg-rose-900/60"}`}
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </>
-    )}
-
-    {activeTab === "support" && (
-      <SupportInbox currentUser={currentUser} />
-    )}
-  </main>
+      </main>
 
       <ConfirmDialog
         isOpen={confirmDialog.open}
@@ -805,9 +724,43 @@ export default function SuperAdminDashboard() {
         onCancel={() => setConfirmDialog({ open: false })}
       />
 
-      <SettingsModal
+      <UserSettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
+        currentUser={currentUser}
+        onUserUpdated={(updatedUser) => {
+          setCurrentUser(updatedUser);
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+          localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+        }}
+      />
+
+      <AllAccountsModal
+        isOpen={isAllAccountsModalOpen}
+        onClose={() => setIsAllAccountsModalOpen(false)}
+        users={users}
+        loadingUsers={loadingUsers}
+        usersError={usersError}
+        fetchUsers={fetchUsers}
+        currentUserId={currentUserId}
+        actionLoadingId={actionLoadingId}
+        requestToggleStatus={requestToggleStatus}
+        requestDelete={requestDelete}
+        tableAlert={tableAlert}
+        setTableAlert={setTableAlert}
+        positions={positions}
+      />
+
+      <SupportInboxModal
+        isOpen={isSupportInboxModalOpen}
+        onClose={() => setIsSupportInboxModalOpen(false)}
+        currentUser={currentUser}
+      />
+
+      <ReportsModal
+        isOpen={isReportsModalOpen}
+        onClose={() => setIsReportsModalOpen(false)}
+        currentUser={currentUser}
       />
 
       {toast.show && (

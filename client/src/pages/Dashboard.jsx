@@ -3,6 +3,12 @@ import { useNavigate } from "react-router-dom";
 import ThemeToggle from "../components/ThemeToggle";
 import SupportChatWidget from "../components/SupportChatWidget";
 import UserGuideModal from "../components/UserGuideModal";
+import WorkflowDocumentsModal from "../components/WorkflowDocumentsModal";
+import NotificationsModal, { isIncomingNotification } from "../components/NotificationsModal";
+import UserSettingsModal from "../components/UserSettingsModal";
+import WorkflowCalendar from "../components/WorkflowCalendar";
+import CreateDocumentModal from "../components/CreateDocumentModal";
+import TrackDocumentModal from "../components/TrackDocumentModal";
 import {
   deleteDocument,
   downloadDocumentFile,
@@ -17,7 +23,7 @@ import {
 } from "../services/api";
 
 const getPhotoStorageKey = (userId) => `profilePhoto:${userId}`;
-const LIVE_REFRESH_MS = 3000;
+const LIVE_REFRESH_MS = 30000;
 
 const formatDateTime = (value) => {
   if (!value) return "N/A";
@@ -157,11 +163,13 @@ export default function Dashboard() {
   const [actionDocumentId, setActionDocumentId] = useState("");
   const [versionHistoryByDoc, setVersionHistoryByDoc] = useState({});
   const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
-
-  const unreadCount = useMemo(
-    () => notifications.filter((notification) => !notification.isRead).length,
-    [notifications]
-  );
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false);
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
+  const [trackModalDocumentId, setTrackModalDocumentId] = useState("");
 
   // Documents where the logged-in user is the active current holder AND needs to accept.
   // The backend already enforces this via getMyDocuments, but we add a client-side
@@ -190,8 +198,8 @@ export default function Dashboard() {
       activeCardFilter === "action"
         ? needsMyAction
         : activeCardFilter === "notification"
-        ? unreadRelatedDocuments
-        : documents; // backend already enforces: currentHolder === me AND !acceptedAt
+          ? unreadRelatedDocuments
+          : documents; // backend already enforces: currentHolder === me AND !acceptedAt
 
     return baseDocuments;
   }, [activeCardFilter, documents, needsMyAction, unreadRelatedDocuments]);
@@ -210,6 +218,16 @@ export default function Dashboard() {
     });
     return Array.from(uniqueDocs.values());
   }, [documents, trackerDocuments]);
+
+  const unreadCount = useMemo(
+    () =>
+      notifications.filter(
+        (notification) =>
+          !notification.isRead &&
+          isIncomingNotification(notification, user, allAccessibleDocuments)
+      ).length,
+    [notifications, user, allAccessibleDocuments]
+  );
 
   const searchResults = useMemo(() => {
     const query = documentSearch.trim();
@@ -290,6 +308,8 @@ export default function Dashboard() {
     };
   }, [trackedDocument]);
 
+  const lastFetchTimeRef = useRef(0);
+
   const fetchDashboardData = useCallback(
     async (showLoader = true) => {
       try {
@@ -305,15 +325,36 @@ export default function Dashboard() {
           getMyNotifications(),
         ]);
 
-        setUser(userRes.data);
-        setDocuments(docsRes.data || []);
-        setTrackerDocuments(trackerDocsRes.data || []);
-        setNotifications(notificationsRes.data || []);
-        setLastSyncedAt(new Date());
+        const newUser = userRes.data;
+        const newDocs = docsRes.data || [];
+        const newTrackerDocs = trackerDocsRes.data || [];
+        const newNotifications = notificationsRes.data || [];
 
-        localStorage.setItem("currentUser", JSON.stringify(userRes.data));
+        const hasChanged = (oldVal, newVal) => {
+          if (oldVal === newVal) return false;
+          return JSON.stringify(oldVal) !== JSON.stringify(newVal);
+        };
+
+        setUser((prev) => (hasChanged(prev, newUser) ? newUser : prev));
+        setDocuments((prev) => (hasChanged(prev, newDocs) ? newDocs : prev));
+        setTrackerDocuments((prev) => (hasChanged(prev, newTrackerDocs) ? newTrackerDocs : prev));
+        setNotifications((prev) => (hasChanged(prev, newNotifications) ? newNotifications : prev));
+
+        if (showLoader) {
+          setLastSyncedAt(new Date());
+        }
+
+        const prevUserStr = localStorage.getItem("currentUser");
+        const newUserStr = JSON.stringify(newUser);
+        if (prevUserStr !== newUserStr) {
+          localStorage.setItem("currentUser", newUserStr);
+        }
+
+        lastFetchTimeRef.current = Date.now();
       } catch (err) {
-        setError(err.response?.data?.message || "Failed to load dashboard data");
+        if (showLoader) {
+          setError(err.response?.data?.message || "Failed to load dashboard data");
+        }
         if (err.response?.status === 401) {
           localStorage.removeItem("token");
           localStorage.removeItem("currentUser");
@@ -321,7 +362,9 @@ export default function Dashboard() {
           navigate("/login");
         }
       } finally {
-        setLoading(false);
+        if (showLoader) {
+          setLoading(false);
+        }
       }
     },
     [navigate]
@@ -360,22 +403,73 @@ export default function Dashboard() {
     if (!token) return;
 
     const intervalId = setInterval(() => {
+      // Pause polling while any modal is open or while user is typing in any input/textarea
+      const isInputActive =
+        typeof document !== "undefined" &&
+        (document.activeElement?.tagName === "INPUT" ||
+          document.activeElement?.tagName === "TEXTAREA" ||
+          document.activeElement?.tagName === "SELECT");
+
+      if (
+        isWorkflowModalOpen ||
+        isNotificationsModalOpen ||
+        isSettingsModalOpen ||
+        isGuideModalOpen ||
+        isCalendarModalOpen ||
+        isCreateModalOpen ||
+        isTrackModalOpen ||
+        isInputActive
+      ) {
+        return;
+      }
+
       fetchDashboardDataRef.current(false);
     }, LIVE_REFRESH_MS);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [
+    isWorkflowModalOpen,
+    isNotificationsModalOpen,
+    isSettingsModalOpen,
+    isGuideModalOpen,
+    isCalendarModalOpen,
+    isCreateModalOpen,
+    isTrackModalOpen,
+  ]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
     const handleWindowFocus = () => {
-      fetchDashboardDataRef.current(false);
+      if (
+        isWorkflowModalOpen ||
+        isNotificationsModalOpen ||
+        isSettingsModalOpen ||
+        isGuideModalOpen ||
+        isCalendarModalOpen ||
+        isCreateModalOpen ||
+        isTrackModalOpen
+      ) {
+        return;
+      }
+      if (Date.now() - lastFetchTimeRef.current > 20000) {
+        fetchDashboardDataRef.current(false);
+      }
     };
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (
+        document.visibilityState === "visible" &&
+        !isWorkflowModalOpen &&
+        !isNotificationsModalOpen &&
+        !isSettingsModalOpen &&
+        !isGuideModalOpen &&
+        !isCalendarModalOpen &&
+        !isCreateModalOpen &&
+        !isTrackModalOpen &&
+        Date.now() - lastFetchTimeRef.current > 20000
+      ) {
         fetchDashboardDataRef.current(false);
       }
     };
@@ -387,7 +481,15 @@ export default function Dashboard() {
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [
+    isWorkflowModalOpen,
+    isNotificationsModalOpen,
+    isSettingsModalOpen,
+    isGuideModalOpen,
+    isCalendarModalOpen,
+    isCreateModalOpen,
+    isTrackModalOpen,
+  ]);
 
   useEffect(() => {
     if (!user?._id) return;
@@ -425,7 +527,8 @@ export default function Dashboard() {
     ) {
       return;
     }
-    navigate(`/track-document/${doc.trackingId}`);
+    setTrackModalDocumentId(doc.trackingId);
+    setIsTrackModalOpen(true);
   };
 
   const handlePhotoUpload = (event) => {
@@ -544,14 +647,26 @@ export default function Dashboard() {
       setSuccess("");
       const res = await downloadDocumentFile(doc.trackingId);
       const blobUrl = window.URL.createObjectURL(res.data);
-      const link = document.createElement("a");
+      const link = window.document.createElement("a");
       link.href = blobUrl;
       link.download = doc.file?.originalFileName || "document";
+      window.document.body.appendChild(link);
       link.click();
+      window.document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
       setSuccess("File downloaded successfully");
     } catch (err) {
-      setError(err.response?.data?.message || "Unable to download file");
+      let message = "Unable to download file";
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed?.message) message = parsed.message;
+        } catch {}
+      } else if (err?.response?.data?.message) {
+        message = err.response.data.message;
+      }
+      setError(message);
     } finally {
       setActionDocumentId("");
     }
@@ -576,16 +691,29 @@ export default function Dashboard() {
       setActionDocumentId(doc.trackingId);
       setError("");
       setSuccess("");
-      const res = await downloadDocumentVersion(doc.trackingId, version.versionNumber);
+      const versionNum = version.versionNumber ?? 1;
+      const res = await downloadDocumentVersion(doc.trackingId, versionNum);
       const blobUrl = window.URL.createObjectURL(res.data);
-      const link = document.createElement("a");
+      const link = window.document.createElement("a");
       link.href = blobUrl;
-      link.download = version.originalFileName || "document";
+      link.download = version.originalFileName || doc.file?.originalFileName || "document";
+      window.document.body.appendChild(link);
       link.click();
+      window.document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
-      setSuccess(`Downloaded ${version.originalFileName}`);
+      setSuccess(`Downloaded ${version.originalFileName || 'document'}`);
     } catch (err) {
-      setError(err.response?.data?.message || "Unable to download version");
+      let message = "Unable to download version";
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed?.message) message = parsed.message;
+        } catch {}
+      } else if (err?.response?.data?.message) {
+        message = err.response.data.message;
+      }
+      setError(message);
     } finally {
       setActionDocumentId("");
     }
@@ -680,7 +808,7 @@ export default function Dashboard() {
                 />
               </label>
               <span className="text-[10px] text-indigo-200/80 font-medium whitespace-nowrap">
-                
+
               </span>
             </div>
 
@@ -757,7 +885,11 @@ export default function Dashboard() {
                   }
 
                   return (
-                    <div key={doc._id} className="bg-slate-50/50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 rounded-xl p-5 transition-all duration-300 premium-card">
+                    <div
+                      key={doc._id}
+                      onClick={(e) => handleCardClick(doc, e)}
+                      className="bg-slate-50/50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 rounded-xl p-5 transition-all duration-300 premium-card cursor-pointer"
+                    >
                       <div className="flex flex-wrap justify-between items-start gap-4">
                         <div>
                           <div className="flex items-center gap-3">
@@ -770,7 +902,11 @@ export default function Dashboard() {
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => navigate(`/track-document/${doc.trackingId}`)}
+                            type="button"
+                            onClick={() => {
+                              setTrackModalDocumentId(doc.trackingId);
+                              setIsTrackModalOpen(true);
+                            }}
                             className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.03] active:scale-95 transition-all duration-200 inline-flex items-center gap-2 border border-indigo-400/30 cursor-pointer"
                           >
                             <svg className="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
@@ -804,7 +940,7 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 xl:gap-8">
             {/* Sidebar Navigation */}
-            <aside className="xl:col-span-3">
+            <aside className="xl:col-span-3 space-y-6">
               <section className="w-full bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-xl p-5 shadow-sm space-y-4">
                 <div>
                   <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Control Panel</h2>
@@ -813,7 +949,7 @@ export default function Dashboard() {
 
                 <div className="space-y-2 mt-4">
                   <button
-                    onClick={() => navigate("/workflow-documents")}
+                    onClick={() => setIsWorkflowModalOpen(true)}
                     className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group"
                   >
                     <span className="flex items-center gap-3">
@@ -829,7 +965,7 @@ export default function Dashboard() {
                   </button>
 
                   <button
-                    onClick={() => navigate("/notifications")}
+                    onClick={() => setIsNotificationsModalOpen(true)}
                     className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group"
                   >
                     <span className="flex items-center gap-3">
@@ -852,7 +988,7 @@ export default function Dashboard() {
                   </button>
 
                   <button
-                    onClick={() => navigate("/settings")}
+                    onClick={() => setIsSettingsModalOpen(true)}
                     className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group"
                   >
                     <span className="flex items-center gap-3">
@@ -918,6 +1054,16 @@ export default function Dashboard() {
                   </button>
                 </div>
               </section>
+
+              {/* Monthly Workflow Calendar */}
+              <WorkflowCalendar
+                documents={allAccessibleDocuments.length > 0 ? allAccessibleDocuments : (trackerDocuments.length > 0 ? trackerDocuments : documents)}
+                onSelectDocument={(trackingId) => {
+                  setTrackModalDocumentId(trackingId);
+                  setIsTrackModalOpen(true);
+                }}
+                onModalStateChange={(isOpen) => setIsCalendarModalOpen(isOpen)}
+              />
             </aside>
 
             {/* Document Location Tracker */}
@@ -990,7 +1136,7 @@ export default function Dashboard() {
 
                               let circleColor = "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700";
                               let pulse = "";
-                              
+
                               if (isCompleted) {
                                 circleColor = "bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-500/20";
                               } else if (isCurrent) {
@@ -1025,11 +1171,10 @@ export default function Dashboard() {
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">Live Workflow Summary</p>
                             <span
-                              className={`rounded-full text-xs font-semibold border px-3 py-1 ${
-                                trackedLocation?.isCompleted
-                                  ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
-                                  : "bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800"
-                              }`}
+                              className={`rounded-full text-xs font-semibold border px-3 py-1 ${trackedLocation?.isCompleted
+                                ? "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800"
+                                : "bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800"
+                                }`}
                             >
                               {trackedDocument.status}
                             </span>
@@ -1060,11 +1205,10 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => handleCardFilterClick("all")}
-                  className={`bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-4 rounded-xl border text-left transition-all duration-300 premium-card ${
-                    activeCardFilter === "all"
-                      ? "border-indigo-600 dark:border-indigo-500 ring-2 ring-indigo-500/10"
-                      : "border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none"
-                  }`}
+                  className={`bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-4 rounded-xl border text-left transition-all duration-300 premium-card ${activeCardFilter === "all"
+                    ? "border-indigo-600 dark:border-indigo-500 ring-2 ring-indigo-500/10"
+                    : "border-slate-200/80 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none"
+                    }`}
                 >
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Assigned</p>
                   <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">{documents.length}</p>
@@ -1073,11 +1217,10 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => handleCardFilterClick("action")}
-                  className={`bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-4 rounded-xl border text-left transition-all duration-300 premium-card ${
-                    activeCardFilter === "action"
-                      ? "border-amber-500 ring-2 ring-amber-500/10"
-                      : "border-slate-200/80 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500 hover:shadow-lg dark:shadow-none"
-                  }`}
+                  className={`bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-4 rounded-xl border text-left transition-all duration-300 premium-card ${activeCardFilter === "action"
+                    ? "border-amber-500 ring-2 ring-amber-500/10"
+                    : "border-slate-200/80 dark:border-slate-800 hover:border-amber-400 dark:hover:border-amber-500 hover:shadow-lg dark:shadow-none"
+                    }`}
                 >
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Action</p>
                   <p className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">{needsMyAction.length}</p>
@@ -1086,11 +1229,10 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => handleCardFilterClick("notification")}
-                  className={`bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-4 rounded-xl border text-left transition-all duration-300 premium-card ${
-                    activeCardFilter === "notification"
-                      ? "border-rose-500 ring-2 ring-rose-500/10"
-                      : "border-slate-200/80 dark:border-slate-800 hover:border-rose-400 dark:hover:border-rose-500 hover:shadow-lg dark:shadow-none"
-                  }`}
+                  className={`bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-4 rounded-xl border text-left transition-all duration-300 premium-card ${activeCardFilter === "notification"
+                    ? "border-rose-500 ring-2 ring-rose-500/10"
+                    : "border-slate-200/80 dark:border-slate-800 hover:border-rose-400 dark:hover:border-rose-500 hover:shadow-lg dark:shadow-none"
+                    }`}
                 >
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Alerts</p>
                   <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{unreadCount}</p>
@@ -1100,8 +1242,8 @@ export default function Dashboard() {
               {/* Action Buttons Column */}
               <section className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-xl p-4 grid grid-cols-2 gap-3 shadow-sm">
                 <button
-                  onClick={() => navigate("/create-document")}
-                  className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white py-2.5 rounded-xl font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs"
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white py-2.5 rounded-xl font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -1109,8 +1251,11 @@ export default function Dashboard() {
                   Create Document
                 </button>
                 <button
-                  onClick={() => navigate("/track-document")}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl font-bold transition shadow-lg shadow-slate-500/10 flex items-center justify-center gap-2 text-xs"
+                  onClick={() => {
+                    setTrackModalDocumentId("");
+                    setIsTrackModalOpen(true);
+                  }}
+                  className="w-full bg-slate-900 hover:bg-slate-800 text-white py-2.5 rounded-xl font-bold transition shadow-lg shadow-slate-500/10 flex items-center justify-center gap-2 text-xs cursor-pointer"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -1157,7 +1302,7 @@ export default function Dashboard() {
                     {displayedDocuments.map((doc) => {
                       const requiresAction = doc.workflow?.canAccept || doc.workflow?.canForward;
                       const isComplete = isWorkflowComplete(doc);
-                                 let statusBadge = "bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800 font-semibold px-3 py-1 rounded-full";
+                      let statusBadge = "bg-sky-100 text-sky-800 border border-sky-300 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800 font-semibold px-3 py-1 rounded-full";
                       if (isComplete) {
                         statusBadge = "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 font-semibold px-3 py-1 rounded-full";
                       } else if (requiresAction) {
@@ -1171,7 +1316,7 @@ export default function Dashboard() {
                               <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">{doc.title}</h3>
                               <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">ID: {doc.trackingId}</p>
                             </div>
-                            
+
                             <div className="flex items-center gap-2 shrink-0">
                               <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${statusBadge}`}>
                                 {doc.status}
@@ -1259,7 +1404,11 @@ export default function Dashboard() {
                                 </div>
                               )}
                               <button
-                                onClick={() => navigate(`/track-document/${doc.trackingId}`)}
+                                type="button"
+                                onClick={() => {
+                                  setTrackModalDocumentId(doc.trackingId);
+                                  setIsTrackModalOpen(true);
+                                }}
                                 className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-md shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:scale-[1.03] active:scale-95 transition-all duration-200 inline-flex items-center gap-2 border border-indigo-400/30 cursor-pointer ml-auto shrink-0"
                               >
                                 <svg className="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
@@ -1318,6 +1467,55 @@ export default function Dashboard() {
       </main>
       <SupportChatWidget currentUser={user} />
       <UserGuideModal isOpen={isGuideModalOpen} onClose={() => setIsGuideModalOpen(false)} />
+      <WorkflowDocumentsModal
+        isOpen={isWorkflowModalOpen}
+        onClose={() => setIsWorkflowModalOpen(false)}
+        documents={allAccessibleDocuments.length > 0 ? allAccessibleDocuments : (trackerDocuments.length > 0 ? trackerDocuments : documents)}
+        currentUser={user}
+        onSelectDocument={(trackingId) => {
+          setIsWorkflowModalOpen(false);
+          setTrackModalDocumentId(trackingId);
+          setIsTrackModalOpen(true);
+        }}
+      />
+      <NotificationsModal
+        isOpen={isNotificationsModalOpen}
+        onClose={() => setIsNotificationsModalOpen(false)}
+        notifications={notifications}
+        currentUser={user}
+        documents={allAccessibleDocuments}
+        onNotificationsUpdated={fetchDashboardData}
+        onSelectDocument={(trackingId) => {
+          setIsNotificationsModalOpen(false);
+          setTrackModalDocumentId(trackingId);
+          setIsTrackModalOpen(true);
+        }}
+      />
+      <UserSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        currentUser={user}
+        onUserUpdated={(updatedUser) => {
+          setUser(updatedUser);
+          localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+        }}
+      />
+      <CreateDocumentModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onDocumentCreated={() => {
+          fetchDashboardData(false);
+        }}
+      />
+      <TrackDocumentModal
+        isOpen={isTrackModalOpen}
+        onClose={() => setIsTrackModalOpen(false)}
+        initialTrackingId={trackModalDocumentId}
+        documents={allAccessibleDocuments}
+        onDocumentUpdated={() => {
+          fetchDashboardData(false);
+        }}
+      />
     </div>
   );
 }

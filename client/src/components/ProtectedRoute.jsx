@@ -38,7 +38,7 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     }
   }
 
-  // ── Case 3: Fully authorized ──────────────────────────────────
+  // ── Case 3: Fully authorized ─────
   return children;
 };
 

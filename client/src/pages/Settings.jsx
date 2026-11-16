@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ThemeToggle from "../components/ThemeToggle";
-import { getCampusPositions, getCurrentUser, updateCurrentUser, updateNotificationPreferences } from "../services/api";
+import { getCurrentUser, updateCurrentUser, updateNotificationPreferences } from "../services/api";
+
+const isAdminOrSuperAdmin = (role) => {
+  if (!role) return false;
+  const r = String(role).toLowerCase().trim();
+  return r === "admin" || r === "superadmin" || r === "super-admin" || r === "super_admin";
+};
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -9,7 +14,6 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [positionsLoading, setPositionsLoading] = useState(true);
-  const [positions, setPositions] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -19,6 +23,7 @@ export default function Settings() {
     name: "",
     email: "",
     position: "",
+    role: "",
     currentPassword: "",
     newPassword: "",
     confirmNewPassword: "",
@@ -39,10 +44,7 @@ export default function Settings() {
         setLoading(true);
         setError("");
 
-        const [userRes, positionsRes] = await Promise.all([
-          getCurrentUser(),
-          getCampusPositions(),
-        ]);
+        const userRes = await getCurrentUser();
 
         const userData = userRes.data;
         setForm((previous) => ({
@@ -50,11 +52,11 @@ export default function Settings() {
           name: userData.name || "",
           email: userData.email || "",
           position: userData.position || "",
+          role: userData.role || "",
           phone: userData.phone || "",
           emailAlerts: userData.emailAlerts !== undefined ? userData.emailAlerts : true,
           inAppNotifications: userData.inAppNotifications !== undefined ? userData.inAppNotifications : true,
         }));
-        setPositions(positionsRes.data || []);
       } catch (err) {
         setError(err.response?.data?.message || "Failed to load settings");
         if (err.response?.status === 401) {
@@ -76,6 +78,8 @@ export default function Settings() {
     setForm((previous) => ({ ...previous, [name]: value }));
   };
 
+  const isAdmin = isAdminOrSuperAdmin(form.role);
+
   const handleReset = async () => {
     try {
       setLoading(true);
@@ -88,6 +92,7 @@ export default function Settings() {
         name: userData.name || "",
         email: userData.email || "",
         position: userData.position || "",
+        role: userData.role || "",
         phone: userData.phone || "",
         emailAlerts: userData.emailAlerts !== undefined ? userData.emailAlerts : true,
         inAppNotifications: userData.inAppNotifications !== undefined ? userData.inAppNotifications : true,
@@ -106,22 +111,24 @@ export default function Settings() {
   };
 
   const handleSave = async () => {
+    const payload = {};
     const trimmedName = form.name.trim();
 
-    if (!trimmedName) {
-      setError("Name is required.");
-      setSuccess("");
-      return;
+    if (trimmedName) {
+      payload.name = trimmedName;
     }
-
-    const payload = {
-      name: trimmedName,
-      email: form.email,
-      position: form.position,
-      phone: form.phone.trim(),
-      emailAlerts: form.emailAlerts,
-      inAppNotifications: form.inAppNotifications,
-    };
+    if (form.phone !== undefined) {
+      payload.phone = form.phone.trim();
+    }
+    if (form.emailAlerts !== undefined) {
+      payload.emailAlerts = form.emailAlerts;
+    }
+    if (form.inAppNotifications !== undefined) {
+      payload.inAppNotifications = form.inAppNotifications;
+    }
+    if (isAdmin && form.position && form.position.trim()) {
+      payload.position = form.position.trim();
+    }
 
     const includePasswordChange =
       !!form.currentPassword || !!form.newPassword || !!form.confirmNewPassword;
@@ -139,6 +146,11 @@ export default function Settings() {
       }
       if (form.newPassword.length < 6) {
         setError("New password must be at least 6 characters.");
+        setSuccess("");
+        return;
+      }
+      if (form.newPassword === form.currentPassword) {
+        setError("New password must be different from your current password.");
         setSuccess("");
         return;
       }
@@ -342,20 +354,32 @@ export default function Settings() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Campus Position</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Campus Position</label>
+              {!isAdmin && (
+                <span className="text-[10px] text-slate-400 font-medium">Read-only</span>
+              )}
+            </div>
             <input
               type="text"
               name="position"
               value={form.position}
-              disabled
-              readOnly
-              className="w-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800/80 p-3 rounded-xl text-sm cursor-not-allowed transition-all duration-300 opacity-60"
+              disabled={!isAdmin}
+              readOnly={!isAdmin}
+              onChange={handleChange}
+              placeholder={isAdmin ? "e.g. Manager" : "Not assigned"}
+              className={`w-full p-3 rounded-xl text-sm transition-all duration-300 ${isAdmin
+                ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-800/80 cursor-not-allowed opacity-60"
+                }`}
             />
           </div>
 
           <div className="md:col-span-2">
             <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-              To update your primary email or campus position, please contact the System Administrator.
+              {isAdmin
+                ? "As an Administrator, you can update your Position directly. Primary email remains fixed."
+                : "To update your primary email or campus position, please contact the System Administrator."}
             </p>
           </div>
         </div>
@@ -375,14 +399,12 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => handleToggleNotificationPreference("emailAlerts", form.emailAlerts)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  form.emailAlerts ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
-                }`}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.emailAlerts ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
+                  }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    form.emailAlerts ? 'translate-x-5' : 'translate-x-0'
-                  }`}
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.emailAlerts ? 'translate-x-5' : 'translate-x-0'
+                    }`}
                 />
               </button>
             </div>
@@ -395,14 +417,12 @@ export default function Settings() {
               <button
                 type="button"
                 onClick={() => handleToggleNotificationPreference("inAppNotifications", form.inAppNotifications)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                  form.inAppNotifications ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
-                }`}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${form.inAppNotifications ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
+                  }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    form.inAppNotifications ? 'translate-x-5' : 'translate-x-0'
-                  }`}
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${form.inAppNotifications ? 'translate-x-5' : 'translate-x-0'
+                    }`}
                 />
               </button>
             </div>

@@ -224,13 +224,24 @@ export default function TrackDocument() {
       setError("");
       const res = await downloadDocumentFile(document.trackingId);
       const blobUrl = window.URL.createObjectURL(res.data);
-      const link = document.createElement("a");
+      const link = window.document.createElement("a");
       link.href = blobUrl;
       link.download = document.file?.originalFileName || "document";
+      window.document.body.appendChild(link);
       link.click();
+      window.document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      const message = err.response?.data?.message || "Unable to download file";
+      let message = "Unable to download file";
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed?.message) message = parsed.message;
+        } catch {}
+      } else if (err?.response?.data?.message) {
+        message = err.response.data.message;
+      }
       setError(message);
     } finally {
       setLoadingFileAction(false);
@@ -242,15 +253,27 @@ export default function TrackDocument() {
     try {
       setLoadingFileAction(true);
       setError("");
-      const res = await downloadDocumentVersion(document.trackingId, version.versionNumber);
+      const versionNum = version.versionNumber ?? 1;
+      const res = await downloadDocumentVersion(document.trackingId, versionNum);
       const blobUrl = window.URL.createObjectURL(res.data);
-      const link = document.createElement("a");
+      const link = window.document.createElement("a");
       link.href = blobUrl;
-      link.download = version.originalFileName || "document";
+      link.download = version.originalFileName || document.file?.originalFileName || "document";
+      window.document.body.appendChild(link);
       link.click();
+      window.document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      const message = err.response?.data?.message || "Unable to download version";
+      let message = "Unable to download version";
+      if (err?.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          if (parsed?.message) message = parsed.message;
+        } catch {}
+      } else if (err?.response?.data?.message) {
+        message = err.response.data.message;
+      }
       setError(message);
     } finally {
       setLoadingFileAction(false);

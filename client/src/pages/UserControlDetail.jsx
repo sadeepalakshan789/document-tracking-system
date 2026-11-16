@@ -230,16 +230,6 @@ const getConnectorPercent = (route = []) => {
   return (greenSegments / (route.length - 1)) * 100;
 };
 
-const getStepCircleClass = (step) => {
-  if (step.status === "completed") {
-    return "bg-emerald-600 border-emerald-500 text-white";
-  }
-  if (step.status === "current") {
-    return step.acceptedAt ? "bg-teal-600 border-teal-500 text-white" : "bg-amber-500 border-amber-400 text-slate-950";
-  }
-  return "bg-slate-800 border-slate-750 text-slate-400";
-};
-
 const getStepStatusLabel = (step) => {
   if (step.status === "completed") return "Completed";
   if (step.status === "current") return step.acceptedAt ? "Current (Accepted)" : "Current";
