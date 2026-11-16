@@ -24,6 +24,7 @@ import {
 
 const getPhotoStorageKey = (userId) => `profilePhoto:${userId}`;
 const LIVE_REFRESH_MS = 30000;
+const TRACKER_LIVE_REFRESH_MS = 3000;
 
 const formatDateTime = (value) => {
   if (!value) return "N/A";
@@ -145,6 +146,9 @@ const statusToneClass = (tone) => {
 export default function Dashboard() {
   const navigate = useNavigate();
   const documentsSectionRef = useRef(null);
+  const locationTrackerRef = useRef(null);
+  const autoSelectedTrackingIdRef = useRef(null);
+  const isFetchingTrackerRef = useRef(false);
 
   const [user, setUser] = useState(null);
   const [documents, setDocuments] = useState([]);
@@ -375,6 +379,75 @@ export default function Dashboard() {
     fetchDashboardDataRef.current = fetchDashboardData;
   });
 
+  const fetchTrackerDataSilent = useCallback(async () => {
+    if (isFetchingTrackerRef.current) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      isFetchingTrackerRef.current = true;
+      const res = await getTrackerDocuments();
+      const newTrackerDocs = res.data || [];
+
+      setTrackerDocuments((prev) => {
+        if (prev === newTrackerDocs) return prev;
+        if (JSON.stringify(prev) === JSON.stringify(newTrackerDocs)) {
+          return prev;
+        }
+        return newTrackerDocs;
+      });
+      setLastSyncedAt(new Date());
+    } catch (err) {
+      console.warn("Location tracker silent sync:", err?.message || err);
+    } finally {
+      isFetchingTrackerRef.current = false;
+    }
+  }, []);
+
+  // ── Dedicated 3-second live auto-refresh for Location Tracker ──
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const trackerIntervalId = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      fetchTrackerDataSilent();
+    }, TRACKER_LIVE_REFRESH_MS);
+
+    return () => clearInterval(trackerIntervalId);
+  }, [fetchTrackerDataSilent]);
+
+  const handleDocumentCreated = useCallback(
+    async (newTrackingId, createdDoc) => {
+      const trackingIdToFocus =
+        newTrackingId ||
+        createdDoc?.trackingId ||
+        createdDoc?._id;
+
+      if (trackingIdToFocus) {
+        autoSelectedTrackingIdRef.current = trackingIdToFocus;
+        setSelectedTrackingId(trackingIdToFocus);
+
+        if (createdDoc && createdDoc.trackingId) {
+          setTrackerDocuments((prev) => {
+            const withoutNew = prev.filter((d) => d.trackingId !== createdDoc.trackingId);
+            return [createdDoc, ...withoutNew];
+          });
+        }
+      }
+
+      await fetchTrackerDataSilent();
+      fetchDashboardDataRef.current(false);
+
+      if (locationTrackerRef.current) {
+        locationTrackerRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    },
+    [fetchTrackerDataSilent]
+  );
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -499,12 +572,21 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!trackerDocuments.length) {
-      setSelectedTrackingId("");
+      if (!autoSelectedTrackingIdRef.current) {
+        setSelectedTrackingId("");
+      }
       return;
     }
 
-    const exists = trackerDocuments.some((doc) => doc.trackingId === selectedTrackingId);
-    if (!selectedTrackingId || !exists) {
+    const targetId = autoSelectedTrackingIdRef.current || selectedTrackingId;
+    const targetDoc = trackerDocuments.find((doc) => doc.trackingId === targetId);
+
+    if (targetDoc) {
+      if (selectedTrackingId !== targetDoc.trackingId) {
+        setSelectedTrackingId(targetDoc.trackingId);
+      }
+      autoSelectedTrackingIdRef.current = null;
+    } else if (!selectedTrackingId || !trackerDocuments.some((doc) => doc.trackingId === selectedTrackingId)) {
       setSelectedTrackingId(trackerDocuments[0].trackingId);
     }
   }, [trackerDocuments, selectedTrackingId]);
@@ -1067,12 +1149,20 @@ export default function Dashboard() {
             </aside>
 
             {/* Document Location Tracker */}
-            <aside className="xl:col-span-4">
+            <aside className="xl:col-span-4" ref={locationTrackerRef}>
               <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all rounded-xl p-6 shadow-sm h-full space-y-4">
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Location Tracker</h2>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                      Location Tracker
+                    </h2>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-sm">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Live • Refreshes every 3s
+                    </span>
+                  </div>
                   <div className="flex items-center justify-between mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                    <span>Refreshes every {LIVE_REFRESH_MS / 1000}s</span>
+                    <span>Live Tracking &amp; Step Progress</span>
                     <span>Sync: {formatDateTime(lastSyncedAt)}</span>
                   </div>
                 </div>
@@ -1503,9 +1593,7 @@ export default function Dashboard() {
       <CreateDocumentModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onDocumentCreated={() => {
-          fetchDashboardData(false);
-        }}
+        onDocumentCreated={handleDocumentCreated}
       />
       <TrackDocumentModal
         isOpen={isTrackModalOpen}

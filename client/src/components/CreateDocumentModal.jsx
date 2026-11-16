@@ -211,7 +211,7 @@ export default function CreateDocumentModal({
 
       // Seamless auto-close and dashboard refresh without full reload
       setTimeout(() => {
-        onDocumentCreated?.(uploadId);
+        onDocumentCreated?.(uploadId, res.data);
         onClose();
       }, 900);
     } catch (err) {
