@@ -458,146 +458,149 @@ export default function SuperAdminDashboard() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {[
-                {
-                  label: "Total Accounts",
-                  value: stats.total,
-                  color: "text-indigo-600 dark:text-indigo-400",
-                  accent: "border-l-4 border-indigo-500",
-                  bgColor: "bg-indigo-50 dark:bg-indigo-950/20",
-                  icon: (
-                    <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                  ),
-                },
-                {
-                  label: "Super-Admins",
-                  value: stats.admins,
-                  color: "text-violet-600 dark:text-violet-400",
-                  accent: "border-l-4 border-violet-500",
-                  bgColor: "bg-violet-50 dark:bg-violet-950/20",
-                  icon: (
-                    <svg className="w-5 h-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                    </svg>
-                  ),
-                },
-                {
-                  label: "Regular Users",
-                  value: stats.regularUsers,
-                  color: "text-emerald-600 dark:text-emerald-400",
-                  accent: "border-l-4 border-emerald-500",
-                  bgColor: "bg-emerald-50 dark:bg-emerald-950/20",
-                  icon: (
-                    <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  ),
-                },
-                {
-                  label: "Blocked",
-                  value: stats.blocked,
-                  color: "text-rose-600 dark:text-rose-400",
-                  accent: "border-l-4 border-rose-500",
-                  bgColor: "bg-rose-50 dark:bg-rose-950/20",
-                  icon: (
-                    <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  ),
-                },
-              ].map((s) => (
-                <div key={s.label} className={`bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex items-center justify-between ${s.accent}`}>
-                  <div className="flex flex-col gap-1">
-                    <span className={`text-2xl font-black ${s.color}`}>{s.value}</span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold tracking-wide uppercase">{s.label}</span>
-                  </div>
-                  <div className={`p-2 rounded-lg ${s.bgColor} shrink-0`}>
-                    {s.icon}
-                  </div>
-                </div>
-              ))}
+          {[
+            {
+              label: "Total Accounts",
+              value: stats.total,
+              color: "text-indigo-600 dark:text-indigo-400",
+              accent: "border-l-4 border-indigo-500",
+              bgColor: "bg-indigo-50 dark:bg-indigo-950/20",
+              icon: (
+                <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              ),
+            },
+            {
+              label: "Super-Admins",
+              value: stats.admins,
+              color: "text-violet-600 dark:text-violet-400",
+              accent: "border-l-4 border-violet-500",
+              bgColor: "bg-violet-50 dark:bg-violet-950/20",
+              icon: (
+                <svg className="w-5 h-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              ),
+            },
+            {
+              label: "Regular Users",
+              value: stats.regularUsers,
+              color: "text-emerald-600 dark:text-emerald-400",
+              accent: "border-l-4 border-emerald-500",
+              bgColor: "bg-emerald-50 dark:bg-emerald-950/20",
+              icon: (
+                <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              ),
+            },
+            {
+              label: "Blocked",
+              value: stats.blocked,
+              color: "text-rose-600 dark:text-rose-400",
+              accent: "border-l-4 border-rose-500",
+              bgColor: "bg-rose-50 dark:bg-rose-950/20",
+              icon: (
+                <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              ),
+            },
+          ].map((s) => (
+            <div key={s.label} className={`bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex items-center justify-between ${s.accent}`}>
+              <div className="flex flex-col gap-1">
+                <span className={`text-2xl font-black ${s.color}`}>{s.value}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold tracking-wide uppercase">{s.label}</span>
+              </div>
+              <div className={`p-2 rounded-lg ${s.bgColor} shrink-0`}>
+                {s.icon}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* CONTROL PANEL */}
+          <section className="lg:col-span-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-2xl p-6 shadow-sm space-y-4">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Control Panel</h2>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Quick actions for your account.</p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* CONTROL PANEL */}
-              <section className="lg:col-span-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-lg dark:shadow-none transition-all duration-300 rounded-2xl p-6 shadow-sm space-y-4">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">Control Panel</h2>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Quick actions for your account.</p>
-                </div>
-
-                <div className="space-y-2 mt-4">
-                  {/* All Accounts */}
-                  <button
-                    type="button"
-                    onClick={() => setIsAllAccountsModalOpen(true)}
-                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group cursor-pointer"
-                  >
-                    <span className="flex items-center gap-3">
-                      <span className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/20 group-hover:scale-105 transition-transform shrink-0">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
+            <div className="space-y-2 mt-4">
+              {/* All Accounts */}
+              <button
+                type="button"
+                onClick={() => setIsAllAccountsModalOpen(true)}
+                className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group cursor-pointer"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/20 group-hover:scale-105 transition-transform shrink-0">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </span>
+                  <span>
+                    <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                      All Accounts
+                      <span className="inline-flex min-w-[16px] h-4 px-1.5 items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-bold leading-none font-sans">
+                        {users.length}
                       </span>
-                      <span>
-                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                          All Accounts
-                          <span className="inline-flex min-w-[16px] h-4 px-1.5 items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-bold leading-none font-sans">
-                            {users.length}
-                          </span>
+                    </span>
+                    <span className="block text-[10px] text-slate-500 dark:text-slate-400">View and manage all user &amp; admin accounts</span>
+                  </span>
+                </span>
+                <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
+              </button>
+
+              {/* Support Inbox */}
+              <button
+                type="button"
+                onClick={() => setIsSupportInboxModalOpen(true)}
+                className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group cursor-pointer"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/20 group-hover:scale-105 transition-transform shrink-0">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </span>
+                  <span>
+                    <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                      Support Inbox
+                      {unreadSupportCount > 0 && (
+                        <span className="inline-flex min-w-[16px] h-4 px-1.5 items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-bold leading-none font-sans animate-pulse">
+                          {unreadSupportCount > 99 ? "99+" : unreadSupportCount}
                         </span>
-                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">View and manage all user &amp; admin accounts</span>
-                      </span>
+                      )}
                     </span>
-                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
-                  </button>
+                    <span className="block text-[10px] text-slate-500 dark:text-slate-400">View and manage user support requests</span>
+                  </span>
+                </span>
+                <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
+              </button>
 
-                  {/* Support Inbox */}
-                  <button
-                    type="button"
-                    onClick={() => setIsSupportInboxModalOpen(true)}
-                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group cursor-pointer"
-                  >
-                    <span className="flex items-center gap-3">
-                      <span className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold border border-indigo-500/20 group-hover:scale-105 transition-transform shrink-0">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                        </svg>
-                      </span>
-                      <span>
-                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                          Support Inbox
-                          {unreadSupportCount > 0 && (
-                            <span className="inline-flex min-w-[16px] h-4 px-1.5 items-center justify-center rounded-full bg-indigo-600 text-white text-[9px] font-bold leading-none font-sans animate-pulse">
-                              {unreadSupportCount > 99 ? "99+" : unreadSupportCount}
-                            </span>
-                          )}
-                        </span>
-                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">View and manage user support requests</span>
-                      </span>
-                    </span>
-                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
-                  </button>
-
-                  {/* Settings */}
-                  <button
-                    type="button"
-                    onClick={() => setIsSettingsModalOpen(true)}
-                    className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group cursor-pointer"
-                  >
-                    <span className="flex items-center gap-3">
-                      <span className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/20 group-hover:scale-105 transition-transform shrink-0">
-                        S
-                      </span>
-                      <span>
-                        <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100">Settings</span>
-                        <span className="block text-[10px] text-slate-500 dark:text-slate-400">Profile and security</span>
-                      </span>
-                    </span>
-                    <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
-                  </button>
+              {/* Settings */}
+              <button
+                type="button"
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="w-full flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/60 p-3 text-left hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-all duration-300 group cursor-pointer"
+              >
+                <span className="flex items-center gap-3">
+                  <span className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/20 group-hover:scale-105 transition-transform shrink-0">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </span>
+                  <span>
+                    <span className="block font-semibold text-xs text-slate-900 dark:text-slate-100">Settings</span>
+                    <span className="block text-[10px] text-slate-500 dark:text-slate-400">Profile and security</span>
+                  </span>
+                </span>
+                <span className="text-slate-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
+              </button>
 
                   {/* Generate Reports */}
                   <button
@@ -630,8 +633,10 @@ export default function SuperAdminDashboard() {
                     className="w-full flex items-center justify-between rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-955/20 p-3 text-left hover:bg-red-100 dark:hover:bg-red-950/40 transition-all duration-300 group cursor-pointer"
                   >
                     <span className="flex items-center gap-3">
-                      <span className="w-9 h-9 rounded-xl bg-red-500/20 text-red-500 dark:text-red-400 flex items-center justify-center font-bold border border-red-500/20 group-hover:scale-105 transition-transform shrink-0">
-                        L
+                      <span className="w-9 h-9 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center font-bold border border-red-500/20 group-hover:scale-105 transition-transform shrink-0">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                        </svg>
                       </span>
                       <span>
                         <span className="block font-semibold text-xs text-red-700 dark:text-red-400">Logout</span>
@@ -640,80 +645,80 @@ export default function SuperAdminDashboard() {
                     </span>
                     <span className="text-red-600 dark:text-red-400 group-hover:translate-x-0.5 transition-transform text-xs font-bold">→</span>
                   </button>
-                </div>
-              </section>
-
-              {/* Create New User / Admin */}
-              <section className="lg:col-span-8 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm transition-colors duration-200">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-8 h-8 bg-indigo-500/10 border border-indigo-500/20 dark:border-indigo-500/30 rounded-lg flex items-center justify-center">
-                    <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-900 dark:text-white">Create New User / Admin</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">The new account will be pre-verified and immediately active.</p>
-                  </div>
-                </div>
-
-                <Alert type={formAlert.type} message={formAlert.message} onClose={() => setFormAlert({ type: "", message: "" })} />
-
-                <form onSubmit={handleCreateUser} noValidate>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex flex-col">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Full Name <span className="text-rose-500">*</span></label>
-                      <input type="text" placeholder="e.g. Saman Perera" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
-                    </div>
-
-                    <div className="flex flex-col">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Email Address <span className="text-rose-500">*</span></label>
-                      <input type="email" autoComplete="new-email" placeholder="user@example.com" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
-                    </div>
-
-                    <div className="flex flex-col">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Password <span className="text-rose-500">*</span></label>
-                      <div className="relative">
-                        <input type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Min 6 characters" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 pr-10 text-sm focus:outline-none transition" disabled={formLoading} />
-                        <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-slate-400 hover:text-slate-600 transition pointer-events-auto" tabIndex={-1}>
-                          {showPassword ? (
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Position <span className="text-rose-500">*</span></label>
-                      <select value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading || loadingPositions}>
-                        <option value="" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">{loadingPositions ? "Loading positions..." : "Select Position"}</option>
-                        {positions && positions.length > 0 && positions.map((p) => (
-                          <option key={p} value={p} className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">{p}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="flex flex-col">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Role <span className="text-rose-500">*</span></label>
-                      <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading}>
-                        <option value="NORMAL_USER" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Normal User</option>
-                        <option value="SUB_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Sub Admin</option>
-                        <option value="SUPER_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Super Admin</option>
-                      </select>
-                    </div>
-
-                    <div className="flex flex-col justify-end">
-                      <button type="submit" disabled={formLoading} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold shadow-md shadow-indigo-500/20 rounded-lg py-2.5 px-5 active:scale-95 disabled:opacity-60 text-sm transition-all h-[42px] border border-transparent">
-                        {formLoading ? "Creating…" : "Create User / Admin"}
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </section>
             </div>
-      </main>
+          </section>
+
+      {/* Create New User / Admin */}
+      <section className="lg:col-span-8 bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm transition-colors duration-200">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-8 h-8 bg-indigo-500/10 border border-indigo-500/20 dark:border-indigo-500/30 rounded-lg flex items-center justify-center">
+            <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white">Create New User / Admin</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">The new account will be pre-verified and immediately active.</p>
+          </div>
+        </div>
+
+        <Alert type={formAlert.type} message={formAlert.message} onClose={() => setFormAlert({ type: "", message: "" })} />
+
+        <form onSubmit={handleCreateUser} noValidate>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex flex-col">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Full Name <span className="text-rose-500">*</span></label>
+              <input type="text" placeholder="e.g. Saman Perera" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
+            </div>
+
+            <div className="flex flex-col">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Email Address <span className="text-rose-500">*</span></label>
+              <input type="email" autoComplete="new-email" placeholder="user@example.com" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading} />
+            </div>
+
+            <div className="flex flex-col">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Password <span className="text-rose-500">*</span></label>
+              <div className="relative">
+                <input type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="Min 6 characters" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 pr-10 text-sm focus:outline-none transition" disabled={formLoading} />
+                <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-slate-400 hover:text-slate-600 transition pointer-events-auto" tabIndex={-1}>
+                  {showPassword ? (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Position <span className="text-rose-500">*</span></label>
+              <select value={form.position} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading || loadingPositions}>
+                <option value="" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">{loadingPositions ? "Loading positions..." : "Select Position"}</option>
+                {positions && positions.length > 0 && positions.map((p) => (
+                  <option key={p} value={p} className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">{p}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Role <span className="text-rose-500">*</span></label>
+              <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="w-full bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:border-indigo-500 rounded-lg py-2.5 px-3.5 text-sm focus:outline-none transition" disabled={formLoading}>
+                <option value="NORMAL_USER" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Normal User</option>
+                <option value="SUB_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Sub Admin</option>
+                <option value="SUPER_ADMIN" className="text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800">Super Admin</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col justify-end">
+              <button type="submit" disabled={formLoading} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold shadow-md shadow-indigo-500/20 rounded-lg py-2.5 px-5 active:scale-95 disabled:opacity-60 text-sm transition-all h-[42px] border border-transparent">
+                {formLoading ? "Creating…" : "Create User / Admin"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </section>
+    </div>
+      </main >
 
       <ConfirmDialog
         isOpen={confirmDialog.open}
@@ -763,15 +768,17 @@ export default function SuperAdminDashboard() {
         currentUser={currentUser}
       />
 
-      {toast.show && (
-        <div className="fixed top-5 right-5 z-50 w-80 shadow-2xl transition-all duration-300 animate-fade-in">
-          <Alert
-            type={toast.type}
-            message={toast.message}
-            onClose={() => setToast({ show: false, type: "", message: "" })}
-          />
-        </div>
-      )}
-    </div>
+  {
+    toast.show && (
+      <div className="fixed top-5 right-5 z-50 w-80 shadow-2xl transition-all duration-300 animate-fade-in">
+        <Alert
+          type={toast.type}
+          message={toast.message}
+          onClose={() => setToast({ show: false, type: "", message: "" })}
+        />
+      </div>
+    )
+  }
+    </div >
   );
 }

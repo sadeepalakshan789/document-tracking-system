@@ -82,6 +82,59 @@ const sendOTP = async (email, otp) => {
   }
 };
 
+const sendPasswordResetOTP = async (email, otp, name) => {
+  const brevoApiKey = process.env.BREVO_API_KEY;
+  const sender = getFromAddress();
+
+  if (!brevoApiKey) {
+    console.error("BREVO_API_KEY is missing in environment variables.");
+    return { sent: false, error: "Brevo API key not configured" };
+  }
+
+  const sendSmtpEmail = {
+    sender,
+    to: [{ email, name: name || undefined }],
+    subject: "Password Reset Verification Code - Document Tracking System",
+    htmlContent: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+        <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 24px; text-align: center; color: #ffffff;">
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">Document Tracking System</h1>
+          <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.9;">Secure Password Reset</p>
+        </div>
+        <div style="padding: 28px 24px; color: #1e293b; line-height: 1.6;">
+          <h2 style="font-size: 17px; margin-top: 0; color: #0f172a;">Hello ${name || "User"},</h2>
+          <p style="font-size: 14px; color: #475569; margin-bottom: 20px;">
+            We received a request to reset your password. Use the 6-digit verification code below to proceed with resetting your account password:
+          </p>
+          <div style="background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%); border: 1px solid #c4b5fd; border-radius: 10px; padding: 20px; margin: 24px 0; text-align: center;">
+            <span style="font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #6d28d9; text-transform: uppercase; display: block; margin-bottom: 8px;">Your Verification Code</span>
+            <div style="font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #4338ca; font-family: monospace;">${otp}</div>
+            <span style="font-size: 12px; color: #7c3aed; display: block; margin-top: 8px;">⏰ Valid for 10 minutes</span>
+          </div>
+          <p style="font-size: 13px; color: #64748b;">
+            If you did not request this password reset, please ignore this email or notify your system administrator. Your password will remain unchanged.
+          </p>
+          <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;">
+          <p style="font-size: 12px; color: #94a3b8; margin: 0; text-align: center;">
+            Designed &amp; Developed by <strong>CodeBloom</strong> • Document Tracking System
+          </p>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    const apiInstance = getBrevoClient();
+    const result = await apiInstance.sendTransacEmail(sendSmtpEmail);
+    console.log(`Password reset OTP email sent via Brevo to ${email}`);
+    return { sent: true, messageId: result.messageId || null };
+  } catch (err) {
+    const errMsg = err?.response?.body || err?.message || JSON.stringify(err);
+    console.error("Brevo Password Reset Email Error:", errMsg);
+    return { sent: false, error: errMsg };
+  }
+};
+
 // ─────────────────────────────────────────────
 //  registerUser
 // ─────────────────────────────────────────────
@@ -969,6 +1022,200 @@ const updateNotificationPreferences = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────
+//  forgotPassword: POST /api/auth/forgot-password
+// ─────────────────────────────────────────────
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({ message: "Please provide your email address." });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      return res.status(404).json({ message: "No account found with this email address." });
+    }
+
+    if (user.status === "blocked") {
+      return res.status(403).json({ message: "This account is blocked. Please contact an administrator." });
+    }
+
+    // Generate a secure random 6-digit numeric OTP (100000–999999)
+    const otp = randomInt(100000, 1000000).toString();
+    const salt = await bcrypt.genSalt(10);
+    const hashedOtp = await bcrypt.hash(otp, salt);
+
+    user.resetOtp = hashedOtp;
+    user.resetOtpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    user.resetOtpVerified = false;
+    user.resetOtpAttempts = 0;
+    await user.save();
+
+    // Send branded password reset OTP email via Brevo
+    const emailResult = await sendPasswordResetOTP(user.email, otp, user.name);
+
+    if (!emailResult.sent) {
+      console.error(`Failed to send password reset email to ${user.email}:`, emailResult.error);
+      return res.status(500).json({
+        message: "Failed to send verification code email. Please ensure the email service is reachable and try again."
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `A 6-digit verification code has been sent to ${user.email}.`,
+      email: user.email,
+    });
+  } catch (error) {
+    console.error("forgotPassword error:", error.message);
+    return res.status(500).json({ message: "An error occurred while processing your request. Please try again." });
+  }
+};
+
+// ─────────────────────────────────────────────
+//  verifyResetOtp: POST /api/auth/verify-reset-otp
+// ─────────────────────────────────────────────
+const verifyResetOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
+    if (!otp || !otp.toString().trim()) {
+      return res.status(400).json({ message: "Please enter the 6-digit verification code." });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (user.status === "blocked") {
+      return res.status(403).json({ message: "Account is blocked. Please contact an administrator." });
+    }
+
+    if (!user.resetOtp || !user.resetOtpExpires) {
+      return res.status(400).json({ message: "No active password reset request found. Please request a new code." });
+    }
+
+    if (new Date() > new Date(user.resetOtpExpires)) {
+      return res.status(400).json({ message: "Verification code has expired. Please request a new code." });
+    }
+
+    if ((user.resetOtpAttempts || 0) >= 5) {
+      return res.status(429).json({ message: "Too many failed attempts. Please request a new verification code." });
+    }
+
+    const submittedOtp = otp.toString().trim();
+    let isMatch = false;
+    if (user.resetOtp === submittedOtp) {
+      isMatch = true;
+    } else {
+      isMatch = await bcrypt.compare(submittedOtp, user.resetOtp).catch(() => false);
+    }
+
+    if (!isMatch) {
+      user.resetOtpAttempts = (user.resetOtpAttempts || 0) + 1;
+      await user.save();
+      const remaining = 5 - user.resetOtpAttempts;
+      return res.status(400).json({
+        message: remaining > 0
+          ? `Invalid verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
+          : "Invalid verification code. Please request a new code."
+      });
+    }
+
+    user.resetOtpVerified = true;
+    user.resetOtpAttempts = 0;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Verification code verified successfully. You may now set a new password.",
+      email: user.email,
+      verified: true,
+    });
+  } catch (error) {
+    console.error("verifyResetOtp error:", error.message);
+    return res.status(500).json({ message: "Failed to verify code. Please try again." });
+  }
+};
+
+// ─────────────────────────────────────────────
+//  resetPassword: POST /api/auth/reset-password
+// ─────────────────────────────────────────────
+const resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword, confirmPassword, otp } = req.body;
+
+    if (!email || !email.trim()) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
+    if (!newPassword) {
+      return res.status(400).json({ message: "Please enter your new password." });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters long." });
+    }
+
+    if (confirmPassword && newPassword !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match." });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const user = await User.findOne({ email: normalizedEmail }).select("+password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (user.status === "blocked") {
+      return res.status(403).json({ message: "Account is blocked. Please contact an administrator." });
+    }
+
+    if (!user.resetOtpExpires || new Date() > new Date(user.resetOtpExpires)) {
+      return res.status(400).json({ message: "Password reset session has expired. Please request a new code." });
+    }
+
+    if (!user.resetOtpVerified) {
+      if (otp) {
+        const submittedOtp = otp.toString().trim();
+        const isMatch = (user.resetOtp === submittedOtp) || await bcrypt.compare(submittedOtp, user.resetOtp).catch(() => false);
+        if (!isMatch) {
+          return res.status(400).json({ message: "Invalid or unverified verification code. Please verify first." });
+        }
+      } else {
+        return res.status(400).json({ message: "Please verify your 6-digit code before resetting password." });
+      }
+    }
+
+    // Set new password (User model pre-save hook automatically hashes it with bcrypt)
+    user.password = newPassword;
+    user.resetOtp = null;
+    user.resetOtpExpires = null;
+    user.resetOtpVerified = false;
+    user.resetOtpAttempts = 0;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successfully. You can now log in with your new password.",
+    });
+  } catch (error) {
+    console.error("resetPassword error:", error.message);
+    return res.status(500).json({ message: "Failed to reset password. Please try again." });
+  }
+};
+
 module.exports = {
   registerUser,
   verifyOTP,
@@ -986,4 +1233,7 @@ module.exports = {
   updateUserByAdmin,
   deleteUserByAdmin,
   updateNotificationPreferences,
+  forgotPassword,
+  verifyResetOtp,
+  resetPassword,
 };

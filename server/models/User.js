@@ -81,6 +81,12 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+
+    // ── Password Reset OTP fields ─────────────────────────────────────
+    resetOtp: { type: String, default: null },
+    resetOtpExpires: { type: Date, default: null },
+    resetOtpVerified: { type: Boolean, default: false },
+    resetOtpAttempts: { type: Number, default: 0 },
   },
   {
     timestamps: true, // adds createdAt & updatedAt automatically

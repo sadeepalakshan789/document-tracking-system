@@ -16,6 +16,9 @@ const {
   updateUserByAdmin,
   deleteUserByAdmin,
   updateNotificationPreferences,
+  forgotPassword,
+  verifyResetOtp,
+  resetPassword,
 } = require("../controllers/authController");
 const { protect, admin } = require("../middleware/auth");
 const upload = require("../middleware/fileUpload");
@@ -25,6 +28,9 @@ router.get("/positions", getCampusPositions);
 router.post("/verify-otp", verifyOTP);
 router.post("/login", loginUser);
 router.post("/resend-otp", resendOTP);
+router.post("/forgot-password", forgotPassword);
+router.post("/verify-reset-otp", verifyResetOtp);
+router.post("/reset-password", resetPassword);
 router.get("/users", protect, getUsers);
 router.get("/me", protect, getCurrentUser);
 router.put("/me", protect, updateCurrentUser);

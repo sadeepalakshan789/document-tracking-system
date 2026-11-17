@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { loginUser } from "../services/api";
 import { useNavigate } from "react-router-dom";
+import ForgotPasswordModal from "../components/ForgotPasswordModal";
 
 export default function Login() {
   const [identifier, setIdentifier] = useState("sadeepala099@gmail.com");
@@ -9,6 +10,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
@@ -199,16 +201,13 @@ export default function Login() {
                 />
                 <span>Remember me</span>
               </label>
-              <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  alert("Forgot password function is currently under development.");
-                }}
-                className="text-indigo-600 hover:text-indigo-500 font-semibold transition-colors"
+              <button
+                type="button"
+                onClick={() => setIsForgotPasswordOpen(true)}
+                className="text-indigo-600 hover:text-indigo-500 font-semibold transition-colors focus:outline-none"
               >
                 Forgot Password?
-              </a>
+              </button>
             </div>
           </div>
 
@@ -255,6 +254,12 @@ export default function Login() {
           </p>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      <ForgotPasswordModal
+        isOpen={isForgotPasswordOpen}
+        onClose={() => setIsForgotPasswordOpen(false)}
+      />
     </div>
   );
 }
